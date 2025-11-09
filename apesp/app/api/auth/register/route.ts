@@ -1,8 +1,7 @@
+import { generateToken, hashPassword } from "@/lib/auth";
+import { prisma } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
-// import { prisma } from "@/lib/db";
-// import { hashPassword, generateToken } from "@/lib/auth";
 import { z } from "zod";
-import { prisma } from "../../../../../src/lib/db";
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -59,7 +58,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid request body", details: error.errors },
+        { error: "Invalid request body", details: error },
         { status: 400 }
       );
     }
