@@ -1,7 +1,7 @@
-import { generateToken, hashPassword } from "@/lib/auth";
-import { prisma } from "@/lib/db";
-import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "../../../../src/lib/db";
+import { generateToken, hashPassword } from "../../../../src/lib/auth";
 
 const registerSchema = z.object({
   email: z.string().email(),
