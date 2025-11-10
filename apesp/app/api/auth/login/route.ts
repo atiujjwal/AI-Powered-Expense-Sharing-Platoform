@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
-import { comparePassword, generateToken } from '@/lib/auth';
+
 import { z } from 'zod';
 
 const schema = z.object({
