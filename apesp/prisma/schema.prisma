@@ -1,12 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -14,107 +7,338 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id                String      @id @default(cuid())
-  email             String      @unique
-  password          String
-  name              String
-  avatar_url        String?
-  currency          String      @default("INR")
-  timezone          String      @default("Asia/Kolkata")
-  created_at        DateTime    @default(now())
-  updated_at        DateTime    @updatedAt
+// ----------------------------------------
+// Enums
+// ----------------------------------------
 
-  expenses          Expense[]
-  budgets           Budget[]
-  subscriptions     Subscription[]
-  savings_goals     SavingsGoal[]
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  BLOCKED
+}
+
+enum GroupRole {
+  ADMIN
+  MEMBER
+}
+
+enum SplitType {
+  EQUAL
+  EXACT
+  PERCENTAGE
+  SHARE
+}
+
+enum ExpenseStatus {
+  ACTIVE
+  DELETED
+}
+
+// ----------------------------------------
+// User & Authentication Models
+// ----------------------------------------
+
+// Purpose: Central identity record for all users across authentication, finance, and social features.
+model User {
+  id         String   @id @default(cuid()) // Unique identifier for each user
+  name       String // Display name used across the app.
+  email      String   @unique // Unique email (used for login)
+  phone      String?  @unique // Optional phone number for contact integration
+  password   String // Securely hashed password
+  avatar     String? // Optional profile picture URL
+  country    String? // Optional country field for localization
+  currency   String   @default("INR") // Default transaction currency (INR)
+  timezone   String   @default("Asia/Kolkata") // Default timezone for date/time display
+  is_deleted Boolean  @default(false) // Soft delete flag (keeps data but marks inactive)
+  created_at DateTime @default(now()) // Timestamp when user account was created
+  updated_at DateTime @updatedAt // Auto-updated timestamp on modification
+
+  // Auth Relations
+  sessions    Session[] // (1 User → Many Sessions): Enables multi-device authentication tracking. Each login creates a session; users can have active sessions across phone, desktop, etc.
+  user_tokens UserToken[] //  (1 User → Many UserTokens): Stores refresh tokens per session. The many-to-many relationship through UserToken allows one user to have multiple valid refresh tokens across devices without invalidating all sessions.  
+
+  // Social Relations
+  friendships_requested Friendship[] @relation("requester") // 1 User → 2 Friendship collections): Bidirectional social connections. User can be requester or addressee in friendship requests.
+  friendships_addressee Friendship[] @relation("addressee") //
+
+  // Group Relations
+  groups_owned  Group[]       @relation("owner") // (1 User → Many GroupMembers): User membership in groups. A user can belong to multiple groups; each membership carries a role (ADMIN/MEMBER).
+  group_members GroupMember[] //
+
+  // Expense & Transaction Relations
+  expenses_created Expense[]      @relation("createdBy") // (as creator) (1 User → Many Expenses): Tracks who created each expense. This is distinct from who paid or who owes.
+  expense_payers   ExpensePayer[] // (1 User → Many ExpensePayersPayments): User may have paid for multiple expenses. Separating this from Expense creation enables complex multi-payer scenarios.
+  expense_splits   ExpenseSplit[] // (1 User → Many ExpenseSplits): User may owe money in many expense splits. This is the liability side of the transaction.
+
+  // Balance & Settlement Relations
+  balances_a           Balance[]    @relation("userA") //  (1 User → 2 Balance collections): Denormalized bilateral debt relationships. A user can have multiple balance records (one per other user per group), stored as either userA or userB.
+  balances_b           Balance[]    @relation("userB") //
+  settlements_paid     Settlement[] @relation("payer") // // (as payer/receiver) (1 User → 2 Settlement collections): One user appears as payer in some settlements and receiver in others.
+  settlements_received Settlement[] @relation("receiver") //
+
+  // Personal Finance Relations
+  budgets       Budget[] // (1 User → Many each): Personal finance personal data isolated per user.
+  subscriptions Subscription[] // (1 User → Many each): Personal finance personal data isolated per user.
+  savings_goals SavingsGoal[] // (1 User → Many each): Personal finance personal data isolated per user.
+  groups        Group[] // as owner) (1 User → Many Groups): Creator ownership distinct from regular membership.
+  expenses      Expense[] //  
 
   @@index([email])
 }
 
-model Expense {
-  id                String      @id @default(cuid())
-  user_id           String
-  user              User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  
-  amount            Decimal     @db.Decimal(12, 2)
-  currency          String      @default("INR")
-  merchant          String
-  description       String
-  category          String
-  date              DateTime
-  payment_method    String      @default("CASH")
-  source_type       String      @default("MANUAL")
-  
-  receipt_url       String?
-  notes             String?
-  
-  is_recurring      Boolean     @default(false)
-  recurring_freq    String?     @default("MONTHLY")
-  
-  status            String      @default("COMPLETED")
-  
-  created_at        DateTime    @default(now())
-  updated_at        DateTime    @updatedAt
+// Purpose: Tracks active user sessions for authentication and multi-device support.
+model Session {
+  id            String   @id @default(cuid()) // Unique session identifier
+  user_id       String // FK to User
+  is_active     Boolean  @default(true) // Indicates active/inactive session
+  device        String? // Optional device/browser name or info
+  ip_address    String? // Optional IP address from login
+  last_activity DateTime // Last recorded user activity
+  created_at    DateTime @default(now()) // When the session was initiated
 
-  @@index([user_id])
-  @@index([category])
-  @@index([date])
+  user   User        @relation(fields: [user_id], references: [id], onDelete: Cascade) // Many sessions belong to one user. Session cannot exist without an authenticated user.
+  tokens UserToken[] //  (1 Session → Many UserTokens): Multiple refresh tokens can exist per session for token rotation without logout.
 }
 
+// Purpose: Stores refresh tokens for secure JWT authentication.
+model UserToken {
+  id         String   @id @default(cuid()) // Unique token record identifier
+  user_id    String // FK to User
+  session_id String // FK to Session
+  token      String   @unique // Hashed refresh token string
+  expires_at DateTime // Token expiration timestamp
+  created_at DateTime @default(now()) // When the token was issued
+
+  user    User    @relation(fields: [user_id], references: [id], onDelete: Cascade) //  (FK user_id): Token belongs to a user. If user is deleted, tokens cascade delete.
+  session Session @relation(fields: [session_id], references: [id], onDelete: Cascade) // (FK session_id): Token is tied to a specific session. If session ends, its tokens are invalidated.
+}
+
+// ----------------------------------------
+// Social Graph Models
+// ----------------------------------------
+
+// Purpose: Tracks friend requests, accepted friendships, and blocked relationships.
+model Friendship {
+  id           String           @id @default(cuid()) // Unique friendship record ID
+  requester_id String // FK → User (who sent the request)
+  addressee_id String // FK → User (who received the request)
+  status       FriendshipStatus @default(PENDING) // PENDING / ACCEPTED / BLOCKED
+  created_at   DateTime         @default(now()) // When request was sent
+  updated_at   DateTime         @updatedAt // Last update to status
+
+  requester User @relation("requester", fields: [requester_id], references: [id], onDelete: Cascade) // (FK requester_id): The user who initiated the request. One user can send many friend requests.
+  addressee User @relation("addressee", fields: [addressee_id], references: [id], onDelete: Cascade) // (FK addressee_id): The user who received the request. One user can receive many friend requests.
+
+  @@unique([requester_id, addressee_id])
+  @@index([requester_id])
+  @@index([addressee_id])
+}
+
+// ----------------------------------------
+// Group & Membership Models
+// ----------------------------------------
+
+// Purpose: Represents a group for shared expense tracking (trips, homes, etc.)
+model Group {
+  id          String   @id @default(cuid()) // Unique group identifier
+  name        String // Group name
+  description String? // Optional group description
+  avatar_url  String? // Optional group avatar
+  owner_id    String // FK → User (creator)
+  created_at  DateTime @default(now()) // When group created
+  updated_at  DateTime @updatedAt // Last modification timestamp
+
+  owner       User          @relation("owner", fields: [owner_id], references: [id], onDelete: Restrict) // (FK owner_id): One user creates the group. Ownership is distinct from membership; deletion of an owner cascades with onDelete: Restrict to force explicit transfer of ownership before deletion.
+  members     GroupMember[] // (1 Group → Many GroupMembers): One group has many members. This is the explicit join table for group membership.
+  expenses    Expense[] // (1 Group → Many Expenses): One group contains many expenses. All expenses must belong to a group.
+  balances    Balance[] // (1 Group → Many Balances): Multiple bilateral balances exist per group. The group_id in Balance can be null (non-group balance between friends) or point to a specific group.
+  settlements Settlement[] // (1 Group → Many Settlements): Payments within a group. group_id can be null for non-group payments between friends.
+  user        User?         @relation(fields: [userId], references: [id])
+  userId      String?
+
+  @@index([owner_id])
+}
+
+// Purpose: Links users to groups with role-based permissions.
+model GroupMember {
+  id        String    @id @default(cuid()) // Unique membership record ID
+  group_id  String // FK → Group
+  user_id   String // FK → User
+  role      GroupRole @default(MEMBER) // Role (ADMIN/MEMBER)
+  joined_at DateTime  @default(now()) // Timestamp when user joined
+
+  group Group @relation(fields: [group_id], references: [id], onDelete: Cascade) // (FK group_id): Many group members belong to one group.
+  user  User  @relation(fields: [user_id], references: [id], onDelete: Cascade) // (FK user_id): Many group memberships belong to one user.
+
+  @@unique([group_id, user_id])
+  @@index([group_id])
+  @@index([user_id])
+}
+
+// ----------------------------------------
+// Expense & Transactional Models
+// ----------------------------------------
+
+// Purpose: Stores core details of a transaction (metadata only).
+model Expense {
+  id            String        @id @default(cuid()) // Unique expense identifier
+  group_id      String // FK → Group
+  created_by_id String // FK → User (creator)
+  description   String // Expense description
+  amount        Decimal       @db.Decimal(12, 2) // Total amount
+  currency      String        @default("INR") // Currency code
+  category      String // Category name
+  date          DateTime // Expense date
+  receipt_url   String? // Optional receipt image URL
+  notes         String? // Optional notes/comments
+  status        ExpenseStatus @default(ACTIVE) // ACTIVE / DELETED (soft delete)
+  created_at    DateTime      @default(now()) // Creation timestamp
+  updated_at    DateTime      @updatedAt // Last updated timestamp
+
+  group      Group          @relation(fields: [group_id], references: [id], onDelete: Cascade) //  (FK group_id): Many expenses belong to one group. Cascading delete ensures no orphaned expenses if group is deleted.
+  created_by User           @relation("createdBy", fields: [created_by_id], references: [id], onDelete: Restrict) //  (FK created_by_id): One user created the expense (the originator, not necessarily the payer). Deletion restricted to prevent orphaning historical records.
+  payers     ExpensePayer[] // (1Expense → Many payers)
+  splits     ExpenseSplit[] // (1Expense → Multiple splits)
+  user       User?          @relation(fields: [userId], references: [id]) // i think if user paid whole
+  userId     String?
+
+  @@index([group_id])
+  @@index([created_by_id])
+  @@index([date])
+  @@index([category])
+}
+
+// Purpose: Tracks who paid for an expense and how much.
+model ExpensePayer {
+  id         String  @id @default(cuid()) // Unique payer record ID
+  expense_id String // FK → Expense
+  user_id    String // FK → User (payer)
+  amount     Decimal @db.Decimal(12, 2) // Amount paid by this user
+
+  expense Expense @relation(fields: [expense_id], references: [id], onDelete: Cascade) // (FK expense_id): Many payers can contribute to one expense. If expense is deleted, all payer records cascade delete.
+  user    User    @relation(fields: [user_id], references: [id], onDelete: Restrict) // (FK user_id): One user can be the payer in many expenses.
+
+  @@index([expense_id])
+  @@index([user_id])
+}
+
+// Purpose: Defines who owes what part of an expense.
+model ExpenseSplit {
+  id           String  @id @default(cuid()) // Unique split ID
+  expense_id   String // FK → Expense
+  user_id      String // FK → User (who owes)
+  amount_owed  Decimal @db.Decimal(12, 2) // Normalized owed amount
+  percent_owed Float? // Optional percentage for reference
+  shares_owed  Float? // Optional share count for reference
+
+  expense Expense @relation(fields: [expense_id], references: [id], onDelete: Cascade) // (FK expense_id): Many splits define one expense's distribution. If expense is deleted, all splits cascade delete.
+  user    User    @relation(fields: [user_id], references: [id], onDelete: Restrict) // (FK user_id): One user can have debt in many expense splits.
+
+  @@index([expense_id])
+  @@index([user_id])
+}
+
+// ----------------------------------------
+// Balance & Settlement Models
+// ----------------------------------------
+
+// Purpose: Cached net balance between users (optionally scoped by group).
+model Balance {
+  id         String   @id @default(cuid()) // Unique balance record ID
+  user_A_id  String // FK → User (Alphabetically lower ID)
+  user_B_id  String // FK → User (Alphabetically higher ID)
+  group_id   String? // Optional FK → Group + null = non-group balance
+  amount     Decimal  @db.Decimal(12, 2) // Net amount owed (+B owes A)
+  updated_at DateTime @updatedAt // Timestamp of last recalculation
+
+  user_a User   @relation("userA", fields: [user_A_id], references: [id], onDelete: Cascade) //  (FK user_A_id, FK user_B_id): Every balance record links two users. By convention, user_A_id < user_B_id (alphabetically) to ensure uniqueness.
+  user_b User   @relation("userB", fields: [user_B_id], references: [id], onDelete: Cascade) //
+  group  Group? @relation(fields: [group_id], references: [id], onDelete: Cascade) //  (FK group_id, nullable): If group_id is NOT NULL, this balance is scoped to that group. If group_id is NULL, this is the non-group (friend-to-friend) balance.
+
+  @@unique([user_A_id, user_B_id, group_id])
+  @@index([user_A_id])
+  @@index([user_B_id])
+  @@index([group_id])
+}
+
+// Purpose: Tracks payments between users to settle balances. A Settlement is a "payment," not an "expense."
+model Settlement {
+  id             String   @id @default(cuid()) // Unique settlement ID
+  payer_id       String // FK → User (payer) User who made the payment
+  receiver_id    String // FK → User (receiver) User who received the payment
+  group_id       String? // Optional FK → Group +_  null = non-group settlement
+  amount         Decimal  @db.Decimal(12, 2) // Amount paid
+  currency       String   @default("INR") // Currency code
+  date           DateTime // Date of settlement
+  payment_method String? // Optional method (UPI, MANUAL, etc.)
+  transaction_id String? // Optional external transaction ref
+  created_at     DateTime @default(now()) // Created timestamp
+  updated_at     DateTime @updatedAt // Last updated timestamp
+
+  payer    User   @relation("payer", fields: [payer_id], references: [id], onDelete: Restrict) //  (FK payer_id): The user making the payment. One user can make many settlements.
+  receiver User   @relation("receiver", fields: [receiver_id], references: [id], onDelete: Restrict) //  (FK receiver_id): The user receiving the payment. One user can receive many settlements.
+  group    Group? @relation(fields: [group_id], references: [id], onDelete: Cascade) // (FK group_id, nullable): Payments can be scoped to a group or non-group (friend-to-friend).
+
+  @@index([payer_id])
+  @@index([receiver_id])
+  @@index([group_id])
+}
+
+// ----------------------------------------
+// Personal Finance Models
+// ----------------------------------------
+
+// Purpose: Defines spending limits for users by category and month.
 model Budget {
-  id                String      @id @default(cuid())
-  user_id           String
-  user              User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  
-  month             String      // YYYY-MM
-  category          String
-  budget_amount     Decimal     @db.Decimal(12, 2)
-  alert_threshold   Int         @default(80)
-  
-  created_at        DateTime    @default(now())
-  updated_at        DateTime    @updatedAt
+  id              String   @id @default(cuid()) // Unique budget record ID
+  user_id         String // FK → User
+  month           String // YYYY-MM format
+  category        String // Expense category
+  budget_amount   Decimal  @db.Decimal(12, 2) // Max spending limit
+  alert_threshold Int      @default(80) // Alert threshold (default 80%)
+  created_at      DateTime @default(now()) // Created timestamp
+  updated_at      DateTime @updatedAt // Updated timestamp
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade) // (FK user_id): One user has many budgets. One budget belongs to one user.
 
   @@unique([user_id, month, category])
   @@index([user_id])
 }
 
+// Purpose: Tracks recurring expenses for reminders and analytics.
 model Subscription {
-  id                String      @id @default(cuid())
-  user_id           String
-  user              User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  
-  name              String
-  amount            Decimal     @db.Decimal(10, 2)
-  frequency         String      @default("MONTHLY")
-  next_charge_date  DateTime
-  
-  is_active         Boolean     @default(true)
-  category          String?
-  notes             String?
-  
-  created_at        DateTime    @default(now())
-  updated_at        DateTime    @updatedAt
+  id               String   @id @default(cuid()) // Unique subscription record ID
+  user_id          String // FK → User
+  name             String // Subscription name
+  amount           Decimal  @db.Decimal(10, 2) // Recurring amount
+  frequency        String   @default("MONTHLY") // Frequency (MONTHLY/ANNUALLY)
+  next_charge_date DateTime // Next payment date
+  is_active        Boolean  @default(true) // Whether currently active
+  category         String? // Optional category
+  notes            String? // Optional notes/reminders
+  created_at       DateTime @default(now()) // Created timestamp
+  updated_at       DateTime @updatedAt // Updated timestamp
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade) // (FK user_id): One user has many subscriptions (Netflix, gym, insurance, etc.).
 
   @@index([user_id])
   @@index([next_charge_date])
 }
 
+// Purpose: Allows users to set and track financial goals.
 model SavingsGoal {
-  id                String      @id @default(cuid())
-  user_id           String
-  user              User        @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  
-  title             String
-  target_amount     Decimal     @db.Decimal(15, 2)
-  current_amount    Decimal     @db.Decimal(15, 2) @default(0)
-  deadline          DateTime
-  category          String?
-  icon              String?
-  
-  created_at        DateTime    @default(now())
-  updated_at        DateTime    @updatedAt
+  id             String   @id @default(cuid()) // Unique goal ID
+  user_id        String // FK → User
+  title          String // Goal title
+  target_amount  Decimal  @db.Decimal(15, 2) // Target amount to save
+  current_amount Decimal  @default(0) @db.Decimal(15, 2) // Current saved amount
+  deadline       DateTime // Target completion date
+  category       String? // Optional category
+  icon           String? // Optional UI icon
+  created_at     DateTime @default(now()) // Created timestamp
+  updated_at     DateTime @updatedAt // Last updated timestamp
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade) // (FK user_id): One user has many savings goals.
 
   @@index([user_id])
 }
