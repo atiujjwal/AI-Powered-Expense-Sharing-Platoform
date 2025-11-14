@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { headers } from "next/headers";
 import { prisma } from "../../../../src/lib/db";
-import { comparePassword, generateToken } from "../../../../src/lib/auth";
+import {
+  comparePassword,
+  generateToken,
+  parseDevice,
+} from "../../../../src/lib/auth";
 
 const schema = z.object({
   email: z.string().email(),
@@ -26,25 +31,34 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
 
-    // --- Create Session in DB ---
-    const session = await prisma.sessions.create({
+    // Create a new session
+    const h = await headers();
+    const userAgent = h.get("user-agent");
+    const ip = h.get("x-forwarded-for") || "unknown";
+    const device = parseDevice(userAgent);
+
+    const session = await prisma.session.create({
       data: {
         user_id: user.id,
-        // Optionally, device/user-agent/IP can be added
+        device,
+        user_agent: userAgent,
+        ip_address: ip,
+        last_activity: new Date(Date.now()),
       },
     });
+
     const sessionId = session.id;
 
     // Issue both tokens INCLUDING SESSION ID in payload
     const accessToken = generateToken(user.id, sessionId, "accessToken"); // 2h
     const refreshToken = generateToken(user.id, sessionId, "refreshToken"); // 7d
 
-    // Save refresh token in DB
-    await prisma.UserTokens.create({
+    // Save the refresh token in DB for this session
+    await prisma.userToken.create({
       data: {
         user_id: user.id,
+        session_id: sessionId,
         token: refreshToken,
-        type: "refreshToken",
         expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       },
     });
@@ -56,6 +70,7 @@ export async function POST(request: NextRequest) {
         user: { id: user.id, email: user.email, name: user.name },
         accessToken,
         refreshToken,
+        sessionId
       },
     });
   } catch (error: any) {

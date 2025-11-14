@@ -2,7 +2,11 @@ import { z } from "zod";
 import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { prisma } from "../../../../src/lib/db";
-import { generateToken, hashPassword } from "../../../../src/lib/auth";
+import {
+  generateToken,
+  hashPassword,
+  parseDevice,
+} from "../../../../src/lib/auth";
 
 const registerSchema = z.object({
   name: z.string().min(2),
@@ -54,12 +58,17 @@ export async function POST(request: NextRequest) {
 
     // Create a new session
     const h = await headers();
+    const userAgent = h.get("user-agent");
+    const ip = h.get("x-forwarded-for") || "unknown";
+    const device = parseDevice(userAgent);
+
     const session = await prisma.session.create({
       data: {
         user_id: user.id,
-        ip_address: h.get("x-forwarded-for") || "unknown",
-        user_agent: h.get("user-agent"),
-        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        device,
+        user_agent: userAgent,
+        ip_address: ip,
+        last_activity: new Date(Date.now()),
       },
     });
     const sessionId = session.id;
@@ -96,9 +105,8 @@ export async function POST(request: NextRequest) {
             id: user.id,
             email: user.email,
             name: user.name,
-            date_of_birth: user.date_of_birth,
-            avatar_url: user.avatar_url,
-            profile_pic: user.profile_pic,
+            date_of_birth: user.dob,
+            avatar_url: user.avatar,
             country: user.country,
             currency: user.currency,
             timezone: user.timezone,
