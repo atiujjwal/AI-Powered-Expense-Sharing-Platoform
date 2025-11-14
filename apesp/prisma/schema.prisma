@@ -92,6 +92,7 @@ model Session {
   user_id       String // FK to User
   is_active     Boolean  @default(true) // Indicates active/inactive session
   device        String? // Optional device/browser name or info
+  user_agent    String? // Raw user-agent string
   ip_address    String? // Optional IP address from login
   last_activity DateTime // Last recorded user activity
   created_at    DateTime @default(now()) // When the session was initiated

@@ -1,8 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
-
-import { z } from 'zod';
-import { prisma } from '../../../../src/lib/db';
-import { comparePassword, generateToken } from '../../../../src/lib/auth';
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { prisma } from "../../../../src/lib/db";
+import { comparePassword, generateToken } from "../../../../src/lib/auth";
 
 const schema = z.object({
   email: z.string().email(),
@@ -15,33 +14,53 @@ export async function POST(request: NextRequest) {
     const { email, password } = schema.parse(body);
 
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
+    if (!user)
       return NextResponse.json(
-        { error: 'Invalid credentials' },
+        { error: "Invalid credentials" },
         { status: 401 }
       );
-    }
-
     const valid = await comparePassword(password, user.password);
-    if (!valid) {
+    if (!valid)
       return NextResponse.json(
-        { error: 'Invalid credentials' },
+        { error: "Invalid credentials" },
         { status: 401 }
       );
-    }
 
-    const token = generateToken(user.id);
+    // --- Create Session in DB ---
+    const session = await prisma.sessions.create({
+      data: {
+        user_id: user.id,
+        // Optionally, device/user-agent/IP can be added
+      },
+    });
+    const sessionId = session.id;
 
+    // Issue both tokens INCLUDING SESSION ID in payload
+    const accessToken = generateToken(user.id, sessionId, "accessToken"); // 2h
+    const refreshToken = generateToken(user.id, sessionId, "refreshToken"); // 7d
+
+    // Save refresh token in DB
+    await prisma.UserTokens.create({
+      data: {
+        user_id: user.id,
+        token: refreshToken,
+        type: "refreshToken",
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
+
+    // Return user and access token (short-lived)
     return NextResponse.json({
       success: true,
       data: {
         user: { id: user.id, email: user.email, name: user.name },
-        token,
+        accessToken,
+        refreshToken,
       },
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: error.message || 'Server error' },
+      { error: error.message || "Server error" },
       { status: 500 }
     );
   }

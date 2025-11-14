@@ -1,24 +1,32 @@
 import { z } from "zod";
 import { NextRequest, NextResponse } from "next/server";
+import { headers } from "next/headers";
 import { prisma } from "../../../../src/lib/db";
 import { generateToken, hashPassword } from "../../../../src/lib/auth";
 
 const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
   name: z.string().min(2),
+  email: z.string().email(),
+  phone: z.string().optional().nullable(),
+  password: z.string().min(6),
+  dob: z.string().refine((val) => !isNaN(Date.parse(val)), {
+    message: "Invalid date_of_birth",
+  }),
+  avatar: z.string().url().optional().nullable(),
+  country: z.string().optional().nullable(),
+  currency: z.string().optional().nullable(),
+  timezone: z.string().optional().nullable(),
 });
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, password, name } = registerSchema.parse(body);
+    const data = registerSchema.parse(body);
 
     // Check if user exists
     const existingUser = await prisma.user.findUnique({
-      where: { email },
+      where: { email: data.email },
     });
-
     if (existingUser) {
       return NextResponse.json(
         { error: "User already exists" },
@@ -27,20 +35,59 @@ export async function POST(request: NextRequest) {
     }
 
     // Hash password
-    const hashedPassword = await hashPassword(password);
+    const hashedPassword = await hashPassword(data.password);
 
-    // Create user
+    // Create user (convert date_of_birth to Date)
     const user = await prisma.user.create({
       data: {
-        email,
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
         password: hashedPassword,
-        name,
+        dob: new Date(data.dob),
+        avatar: data.avatar ?? null,
+        country: data.country ?? null,
+        currency: data.currency ?? "INR",
+        timezone: data.timezone ?? "Asia/Kolkata",
       },
     });
 
-    // Generate token
-    const token = generateToken(user.id);
+    // Create a new session
+    const h = await headers();
+    const session = await prisma.session.create({
+      data: {
+        user_id: user.id,
+        ip_address: h.get("x-forwarded-for") || "unknown",
+        user_agent: h.get("user-agent"),
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      },
+    });
+    const sessionId = session.id;
 
+    // Generate tokens that include sessionId and userId
+    const accessToken = generateToken(
+      String(user.id),
+      String(sessionId),
+      "accessToken"
+    );
+    const refreshToken = generateToken(
+      String(user.id),
+      String(sessionId),
+      "refreshToken"
+    );
+
+    // Save the refresh token in DB for this session
+    await prisma.userToken.create({
+      data: {
+        user_id: user.id,
+        session_id: sessionId,
+        token: refreshToken,
+        // type: "refreshToken",
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
+
+    // Return both tokens and session info to client
     return NextResponse.json(
       {
         success: true,
@@ -49,16 +96,25 @@ export async function POST(request: NextRequest) {
             id: user.id,
             email: user.email,
             name: user.name,
+            date_of_birth: user.date_of_birth,
+            avatar_url: user.avatar_url,
+            profile_pic: user.profile_pic,
+            country: user.country,
+            currency: user.currency,
+            timezone: user.timezone,
           },
-          token,
+          accessToken,
+          refreshToken,
+          sessionId,
         },
       },
       { status: 201 }
     );
   } catch (error) {
+    console.log("Error in auth/register: ", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid request body", details: error },
+        { error: "Invalid request body", details: error.issues },
         { status: 400 }
       );
     }
