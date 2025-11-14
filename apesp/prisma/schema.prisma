@@ -45,6 +45,7 @@ model User {
   email      String   @unique // Unique email (used for login)
   phone      String?  @unique // Optional phone number for contact integration
   password   String // Securely hashed password
+  dob        DateTime? //date of birth
   avatar     String? // Optional profile picture URL
   country    String? // Optional country field for localization
   currency   String   @default("INR") // Default transaction currency (INR)
