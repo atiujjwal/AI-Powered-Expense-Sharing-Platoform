@@ -27,3 +27,38 @@ export const formatFriendshipResponse = (friendship: any) => {
     addressee: formatPublicUser(friendship.addressee),
   };
 };
+
+/**
+ * Formats a GroupMember object for API responses.
+ */
+export const formatGroupMember = (member: any) => {
+  if (!member) return null;
+  return {
+    role: member.role,
+    joined_at: member.joined_at,
+    user: formatPublicUser(member.user),
+  };
+};
+
+/**
+ * Format detailed expense for response
+ */
+export const formatDetailedExpense = (expense: any) => {
+  return {
+    id: expense.id,
+    description: expense.description,
+    amount: expense.amount,
+    date: expense.date,
+    category: expense.category,
+    group_id: expense.group_id,
+    created_by: formatPublicUser(expense.created_by),
+    payers: expense.payers.map((p: any) => ({
+      ...p,
+      user: formatPublicUser(p.user),
+    })),
+    splits: expense.splits.map((s: any) => ({
+      ...s,
+      user: formatPublicUser(s.user),
+    })),
+  };
+};
