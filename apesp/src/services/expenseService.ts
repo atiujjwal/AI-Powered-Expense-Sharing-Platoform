@@ -1,123 +1,257 @@
-import { prisma } from "../lib/db";
-import { Expense } from "../lib/types";
-import { CreateExpenseDTO } from "../types/expense";
+// src/lib/expense-helpers.ts
+import { z } from "zod";
+import { SplitType } from "@prisma/client";
+import { Decimal } from "decimal.js";
 
-export const expenseService = {
-  // Create expense
-  async createExpense(
-    userId: string,
-    data: CreateExpenseDTO
-  ): Promise<Expense> {
-    return prisma.expense.create({
-      data: {
-        user_id: userId,
-        ...data,
-      },
-    });
-  },
+// Ensure high precision for all calculations
+Decimal.set({ precision: 12 });
 
-  // Get all expenses for user
-  async getUserExpenses(
-    userId: string,
-    filters?: {
-      category?: string;
-      startDate?: Date;
-      endDate?: Date;
-      limit?: number;
-      offset?: number;
-    }
-  ): Promise<Expense[]> {
-    return prisma.expense.findMany({
-      where: {
-        user_id: userId,
-        ...(filters?.category && { category: filters.category }),
-        ...(filters?.startDate && {
-          date: { gte: filters.startDate },
-        }),
-        ...(filters?.endDate && {
-          date: { lte: filters.endDate },
-        }),
-      },
-      orderBy: { date: "desc" },
-      take: filters?.limit || 50,
-      skip: filters?.offset || 0,
-    });
-  },
+// --- Zod Schemas for Expense Body ---
 
-  // Get expense by ID
-  async getExpenseById(
-    expenseId: string,
-    userId: string
-  ): Promise<Expense | null> {
-    return prisma.expense.findFirst({
-      where: { id: expenseId, user_id: userId },
-    });
-  },
+const PayerSchema = z.object({
+  user_id: z.string().cuid(),
+  // Amount is received as a string to preserve decimal precision
+  amount: z.string().refine((val) => !new Decimal(val).isNaN(), {
+    message: "Invalid amount string",
+  }),
+});
 
-  // Update expense
-  async updateExpense(
-    expenseId: string,
-    userId: string,
-    data: Partial<CreateExpenseDTO>
-  ): Promise<Expense> {
-    const expense = await prisma.expense.findFirst({
-      where: { id: expenseId, user_id: userId },
-    });
+const SplitBaseSchema = z.object({
+  user_id: z.string().cuid(),
+});
 
-    if (!expense) {
-      throw new Error("Expense not found or user not authorized");
-    }
+// This is the universal 'splits' input from the client
+const SplitInputSchema = SplitBaseSchema.extend({
+  // Client can send any of these, we validate based on split_type
+  amount_owed: z.string().optional(),
+  percent_owed: z.number().optional(),
+  shares_owed: z.number().optional(),
+});
 
-    return prisma.expense.update({
-      where: {
-        id: expenseId,
-      },
-      data: { ...data },
-    });
-  },
+export const ExpenseBodySchema = z.object({
+  group_id: z.string().cuid(),
+  description: z.string().min(1),
+  amount: z.string().refine((val) => !new Decimal(val).isNaN(), {
+    message: "Invalid total amount string",
+  }),
+  date: z.string().datetime(),
+  category: z.string().min(1),
+  receipt_url: z.string().url().nullable().optional(),
+  payers: z.array(PayerSchema).min(1, "At least one payer is required"),
+  split_type: z.nativeEnum(SplitType),
+  splits: z.array(SplitInputSchema).min(1, "At least one split is required"),
+});
 
-  // Delete expense
-  async deleteExpense(expenseId: string, userId: string): Promise<void> {
-    const expense = await prisma.expense.findFirst({
-      where: { id: expenseId, user_id: userId },
-    });
+type ExpenseBody = z.infer<typeof ExpenseBodySchema>;
 
-    if (!expense) {
-      throw new Error("Expense not found or user not authorized");
-    }
-
-    await prisma.expense.delete({
-      where: {
-        id: expenseId,
-      },
-    });
-  },
-
-  // Get monthly summary
-  async getMonthlyExpenses(userId: string, month: Date): Promise<Expense[]> {
-    // <-- ADD THIS RETURN TYPE
-    const startDate = new Date(month.getFullYear(), month.getMonth(), 1);
-    const endDate = new Date(month.getFullYear(), month.getMonth() + 1, 0);
-
-    const expenses = await prisma.expense.findMany({
-      // ... (where clause)
-    });
-
-    return expenses;
-  },
-
-  // Get expenses by category
-  async getExpensesByCategory(userId: string, month: Date) {
-    const expenses = await this.getMonthlyExpenses(userId, month);
-
-    const byCategory = expenses.reduce((acc, exp) => {
-      if (!acc[exp.category]) {
-        acc[exp.category] = 0;
-      }
-      acc[exp.category] += exp.amount;
-      return acc;
-    }, {} as Record<string, number>);
-
-    return byCategory;
-  },
+// Type for the data ready to be inserted into Prisma
+export type ProcessedPayer = { user_id: string; amount: Decimal };
+export type ProcessedSplit = {
+  user_id: string;
+  amount_owed: Decimal;
+  percent_owed?: number | null;
+  shares_owed?: number | null;
 };
+
+/**
+ * Main validation and processing function.
+ * This is the core transactional logic.
+ */
+export function validateAndProcessExpense(
+  body: ExpenseBody,
+  groupMemberIds: Set<string>
+): {
+  payerData: ProcessedPayer[];
+  splitData: ProcessedSplit[];
+} {
+  const totalAmount = new Decimal(body.amount);
+  if (totalAmount.isZero() || totalAmount.isNegative()) {
+    throw new Error("Expense amount must be positive");
+  }
+
+  // --- Validate Payers ---
+  const payerData: ProcessedPayer[] = [];
+  let sumPayers = new Decimal(0);
+
+  for (const payer of body.payers) {
+    if (!groupMemberIds.has(payer.user_id)) {
+      throw new Error(`Payer ${payer.user_id} is not in the group`);
+    }
+    const amount = new Decimal(payer.amount);
+    if (amount.isNegative()) {
+      throw new Error("Payer amount cannot be negative");
+    }
+    sumPayers = sumPayers.add(amount);
+    payerData.push({ user_id: payer.user_id, amount });
+  }
+
+  // Validate sum(payers) == total_amount
+  if (!sumPayers.equals(totalAmount)) {
+    throw new Error(
+      `Payers sum (${sumPayers}) does not equal total amount (${totalAmount})`
+    );
+  }
+
+  // --- Validate and Process Splits ---
+  const splitData: ProcessedSplit[] = [];
+  const numSplits = body.splits.length;
+
+  for (const split of body.splits) {
+    if (!groupMemberIds.has(split.user_id)) {
+      throw new Error(`Split user ${split.user_id} is not in the group`);
+    }
+  }
+
+  let sumSplits = new Decimal(0);
+
+  switch (body.split_type) {
+    case SplitType.EQUAL:
+      // Handle "EQUAL" split with remainder distribution
+      const amounts = distributeAmountEqually(totalAmount, numSplits);
+      for (let i = 0; i < numSplits; i++) {
+        splitData.push({
+          user_id: body.splits[i].user_id,
+          amount_owed: amounts[i],
+        });
+        sumSplits = sumSplits.add(amounts[i]);
+      }
+      break;
+
+    case SplitType.EXACT:
+      for (const split of body.splits) {
+        if (!split.amount_owed) {
+          throw new Error("Exact split missing 'amount_owed'");
+        }
+        const amount = new Decimal(split.amount_owed);
+        if (amount.isNegative()) {
+          throw new Error("Split amount cannot be negative");
+        }
+        splitData.push({
+          user_id: split.user_id,
+          amount_owed: amount,
+        });
+        sumSplits = sumSplits.add(amount);
+      }
+      break;
+
+    case SplitType.PERCENTAGE:
+      let totalPercent = 0;
+      for (const split of body.splits) {
+        if (!split.percent_owed) {
+          throw new Error("Percentage split missing 'percent_owed'");
+        }
+        totalPercent += split.percent_owed;
+      }
+      if (Math.abs(totalPercent - 100) > 1e-9) {
+        throw new Error(`Percentages do not sum to 100 (got ${totalPercent})`);
+      }
+      // Distribute based on percentage, handling remainders
+      const percentAmounts = distributeByShare(
+        totalAmount,
+        body.splits.map((s) => s.percent_owed!)
+      );
+      for (let i = 0; i < numSplits; i++) {
+        splitData.push({
+          user_id: body.splits[i].user_id,
+          amount_owed: percentAmounts[i],
+          percent_owed: body.splits[i].percent_owed,
+        });
+        sumSplits = sumSplits.add(percentAmounts[i]);
+      }
+      break;
+
+    case SplitType.SHARE:
+      let totalShares = new Decimal(0);
+      for (const split of body.splits) {
+        if (!split.shares_owed) {
+          throw new Error("Share split missing 'shares_owed'");
+        }
+        totalShares = totalShares.add(split.shares_owed);
+      }
+      if (totalShares.isZero()) {
+        throw new Error("Total shares cannot be zero");
+      }
+      // Distribute based on shares, handling remainders
+      const shareAmounts = distributeByShare(
+        totalAmount,
+        body.splits.map((s) => s.shares_owed!)
+      );
+      for (let i = 0; i < numSplits; i++) {
+        splitData.push({
+          user_id: body.splits[i].user_id,
+          amount_owed: shareAmounts[i],
+          shares_owed: body.splits[i].shares_owed,
+        });
+        sumSplits = sumSplits.add(shareAmounts[i]);
+      }
+      break;
+  }
+
+  // --- Final Validation ---
+  // Final check to ensure splits sum to the total *exactly*
+  if (!sumSplits.equals(totalAmount)) {
+    throw new Error(
+      `Splits sum (${sumSplits}) does not equal total amount (${totalAmount}) after processing`
+    );
+  }
+
+  return { payerData, splitData };
+}
+
+/**
+ * Splits an amount equally, distributing cents (remainders)
+ * to the first N people.
+ */
+export function distributeAmountEqually(
+  totalAmount: Decimal,
+  numSplits: number
+): Decimal[] {
+  // Use two decimal places for currency
+  const amount = totalAmount.toDecimalPlaces(2);
+  const baseAmount = amount.dividedBy(numSplits).floor();
+  const remainder = amount.minus(baseAmount.times(numSplits));
+
+  const results: Decimal[] = [];
+  // Distribute the remainder (e.g., 0.02)
+  let remainderCents = remainder.times(100).toNumber();
+
+  for (let i = 0; i < numSplits; i++) {
+    let userAmount = baseAmount;
+    if (remainderCents > 0) {
+      userAmount = userAmount.add(0.01);
+      remainderCents--;
+    }
+    results.push(userAmount);
+  }
+  return results;
+}
+
+/**
+ * Splits an amount by shares/percentages, distributing remainders.
+ */
+export function distributeByShare(
+  totalAmount: Decimal,
+  shares: number[]
+): Decimal[] {
+  const amount = totalAmount.toDecimalPlaces(2);
+  const totalShares = new Decimal(shares.reduce((sum, s) => sum + s, 0));
+
+  let sum = new Decimal(0);
+  const results = shares.map((share) => {
+    const shareDecimal = new Decimal(share);
+    const userAmount = amount
+      .times(shareDecimal)
+      .dividedBy(totalShares)
+      .toDecimalPlaces(2); // Round to nearest cent
+    sum = sum.add(userAmount);
+    return userAmount;
+  });
+
+  // Check for rounding difference and add to first user
+  const difference = amount.minus(sum);
+  if (!difference.isZero()) {
+    results[0] = results[0].add(difference);
+  }
+
+  return results;
+}
