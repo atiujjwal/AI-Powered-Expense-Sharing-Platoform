@@ -40,19 +40,19 @@ enum ExpenseStatus {
 
 // Purpose: Central identity record for all users across authentication, finance, and social features.
 model User {
-  id         String   @id @default(cuid()) // Unique identifier for each user
+  id         String    @id @default(cuid()) // Unique identifier for each user
   name       String // Display name used across the app.
-  email      String   @unique // Unique email (used for login)
-  phone      String?  @unique // Optional phone number for contact integration
+  email      String    @unique // Unique email (used for login)
+  phone      String?   @unique // Optional phone number for contact integration
   password   String // Securely hashed password
   dob        DateTime? //date of birth
   avatar     String? // Optional profile picture URL
   country    String? // Optional country field for localization
-  currency   String   @default("INR") // Default transaction currency (INR)
-  timezone   String   @default("Asia/Kolkata") // Default timezone for date/time display
-  is_deleted Boolean  @default(false) // Soft delete flag (keeps data but marks inactive)
-  created_at DateTime @default(now()) // Timestamp when user account was created
-  updated_at DateTime @updatedAt // Auto-updated timestamp on modification
+  currency   String    @default("INR") // Default transaction currency (INR)
+  timezone   String    @default("Asia/Kolkata") // Default timezone for date/time display
+  is_deleted Boolean   @default(false) // Soft delete flag (keeps data but marks inactive)
+  created_at DateTime  @default(now()) // Timestamp when user account was created
+  updated_at DateTime  @updatedAt // Auto-updated timestamp on modification
 
   // Auth Relations
   sessions    Session[] // (1 User → Many Sessions): Enables multi-device authentication tracking. Each login creates a session; users can have active sessions across phone, desktop, etc.
@@ -82,7 +82,10 @@ model User {
   subscriptions Subscription[] // (1 User → Many each): Personal finance personal data isolated per user.
   savings_goals SavingsGoal[] // (1 User → Many each): Personal finance personal data isolated per user.
   groups        Group[] // as owner) (1 User → Many Groups): Creator ownership distinct from regular membership.
-  expenses      Expense[] //  
+  expenses      Expense[] // 
+
+  spendingSummary ExpenseSummary[]
+  spendingTrend   ExpenseTrend[]
 
   @@index([email])
 }
@@ -343,4 +346,33 @@ model SavingsGoal {
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade) // (FK user_id): One user has many savings goals.
 
   @@index([user_id])
+}
+
+// Purpose: Stores denormalized, pre-calculated aggregates of user spending. This table powers quick lookups for analytics dashboards.
+model ExpenseSummary {
+  id          String   @id @default(cuid()) // Unique identifier
+  user_id     String // FK -> User. 
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade) // Relation to the User model.
+  group_id    String? // Optional FK -> Group. `null` for personal spending, or the group ID for group-specific spending.
+  period      String // The time bucket for this summary.
+  category    String // The expense category being summarized.
+  total_spent Decimal  @db.Decimal(12, 2) // The total amount spent by this user in this category/period/group.
+  updated_at  DateTime @updatedAt // When this summary record was last recalculated.
+
+  @@unique([user_id, group_id, period, category])
+  @@index([user_id])
+}
+
+// Purpose: Tracks aggregated spending data over time for a user at different granularities. 
+model ExpenseTrend {
+  id          String   @id @default(cuid()) // Unique identifier
+  user_id     String // FK -> User.
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade) // Relation to the User model.
+  date        DateTime // The start timestamp of the period this data point represents
+  granularity String // The time resolution of this data point.
+  amount      Decimal  @db.Decimal(12, 2) // The total amount spent by the user during this period.
+  updated_at  DateTime @updatedAt // When this trend data point was last recalculated.
+
+  @@unique([user_id, date, granularity])
+  @@index([user_id, date])
 }
