@@ -1,4 +1,3 @@
-// app/api/ai/query/route.ts
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { withAuth } from "@/src/middleware/auth";

@@ -1,4 +1,3 @@
-// app/api/ai/scan-receipt/route.ts
 import { NextRequest } from "next/server";
 import { withAuth } from "@/src/middleware/auth";
 import {

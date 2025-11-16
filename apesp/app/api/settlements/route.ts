@@ -1,4 +1,3 @@
-// app/api/settlements/route.ts
 import { NextRequest } from "next/server";
 import { Decimal } from "decimal.js";
 import { z } from "zod";

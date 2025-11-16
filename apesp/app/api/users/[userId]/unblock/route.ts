@@ -1,4 +1,3 @@
-// app/api/users/[userId]/unblock/route.ts
 import { NextRequest } from "next/server";
 import { FriendshipStatus } from "@prisma/client";
 import { withAuth } from "@/src/middleware/auth";

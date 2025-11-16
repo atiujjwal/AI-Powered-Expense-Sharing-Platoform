@@ -1,4 +1,3 @@
-// app/api/groups/[groupId]/leave/route.ts
 import { NextRequest } from "next/server";
 import { GroupRole } from "@prisma/client";
 import { prisma } from "@/src/lib/db";

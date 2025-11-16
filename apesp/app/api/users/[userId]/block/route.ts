@@ -1,4 +1,3 @@
-// app/api/users/[userId]/block/route.ts
 import { NextRequest } from "next/server";
 
 import { FriendshipStatus } from "@prisma/client";

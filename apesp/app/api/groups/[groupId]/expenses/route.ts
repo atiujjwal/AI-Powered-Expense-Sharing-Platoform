@@ -1,4 +1,3 @@
-// app/api/groups/[groupId]/expenses/route.ts
 import { NextRequest } from "next/server";
 import { prisma } from "@/src/lib/db";
 import { withAuth } from "@/src/middleware/auth";
