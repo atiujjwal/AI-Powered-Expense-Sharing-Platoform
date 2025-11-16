@@ -24,9 +24,9 @@
     ],
     "paths": {
       "@/*": [
-        "./apesp/*"
+        "./*"
       ]
-    },
+    }
   },
   "include": [
     "next-env.d.ts",
