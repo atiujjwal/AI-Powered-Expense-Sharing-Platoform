@@ -1,9 +1,9 @@
 // app/api/analytics/trends/route.ts
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { prisma } from "../../../../src/lib/db";
-import { withAuth } from "../../../../src/middleware/auth";
-import { errorResponse, successResponse } from "../../../../src/lib/response";
+import { prisma } from "@/src/lib/db";
+import { withAuth } from "@/src/middleware/auth";
+import { errorResponse, successResponse } from "@/src/lib/response";
 
 const trendsQuerySchema = z.object({
   start_date: z.string().datetime().optional(),

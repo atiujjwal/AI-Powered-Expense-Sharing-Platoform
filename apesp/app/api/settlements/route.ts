@@ -2,19 +2,23 @@
 import { NextRequest } from "next/server";
 import { Decimal } from "decimal.js";
 import { z } from "zod";
-import { prisma } from "../../../src/lib/db";
-import { withAuth } from "../../../src/middleware/auth";
+import { prisma } from "@/src/lib/db";
+import { withAuth } from "@/src/middleware/auth";
+
+Decimal.set({ precision: 12 });
 
 import {
   errorResponse,
   successResponse,
   notFound,
-} from "../../../src/lib/response";
+  badRequest,
+  created,
+} from "@/src/lib/response";
 
-import { jobQueue } from "../../../src/lib/queue";
-import { createSettlementSchema } from "../../../src/services/settlementServices";
-import { checkGroupMembership } from "../../../src/services/groupService";
-import { formatPublicUser } from "../../../src/lib/formatter";
+import { jobQueue } from "@/src/lib/queue";
+import { createSettlementSchema } from "@/src/services/settlementServices";
+import { checkGroupMembership } from "@/src/services/groupService";
+import { formatPublicUser } from "@/src/lib/formatter";
 
 /**
  * POST /settlements
@@ -31,15 +35,14 @@ const postHandler = async (
     const parsedBody = createSettlementSchema.parse(body);
     const { receiver_id, group_id, amount, date } = parsedBody;
 
-    if (payerId === receiver_id) {
-      return errorResponse("Cannot settle with yourself", 400);
-    }
+    if (payerId === receiver_id)
+      return badRequest("Cannot settle with yourself");
 
     // 404: Receiver not found
     const receiver = await prisma.user.findUnique({
       where: { id: receiver_id, is_deleted: false },
     });
-    if (!receiver) return notFound("Receiver");
+    if (!receiver) return notFound("Receiver not found");
 
     // If group_id is provided, validate membership
     if (group_id) {
@@ -69,12 +72,12 @@ const postHandler = async (
       settlementId: settlement.id,
     });
 
-    return successResponse("Settlement recorded successfully", settlement, 201);
+    return created("Settlement recorded successfully", settlement);
   } catch (error: any) {
     console.log("Error creating settlement:", error);
 
     if (error instanceof z.ZodError) {
-      return errorResponse("Invalid input", 400, "BAD_REQUEST", error.issues);
+      return badRequest("Invalid input", error.issues);
     }
 
     if (error.message === "NOT_FOUND_OR_UNAUTHORIZED") {

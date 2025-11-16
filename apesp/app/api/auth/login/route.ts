@@ -1,12 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
 import { headers } from "next/headers";
-import { prisma } from "../../../../src/lib/db";
+import { prisma } from "@/src/lib/db";
+import { comparePassword, generateToken, parseDevice } from "@/src/lib/auth";
 import {
-  comparePassword,
-  generateToken,
-  parseDevice,
-} from "../../../../src/lib/auth";
+  errorResponse,
+  successResponse,
+  unauthorized,
+} from "@/src/lib/response";
 
 const schema = z.object({
   email: z.string().email(),
@@ -19,17 +20,10 @@ export async function POST(request: NextRequest) {
     const { email, password } = schema.parse(body);
 
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user)
-      return NextResponse.json(
-        { error: "Invalid credentials" },
-        { status: 401 }
-      );
+    if (!user) return unauthorized();
+
     const valid = await comparePassword(password, user.password);
-    if (!valid)
-      return NextResponse.json(
-        { error: "Invalid credentials" },
-        { status: 401 }
-      );
+    if (!valid) return unauthorized();
 
     // Create a new session
     const h = await headers();
@@ -64,19 +58,17 @@ export async function POST(request: NextRequest) {
     });
 
     // Return user and access token (short-lived)
-    return NextResponse.json({
+    return successResponse("Login successful", {
       success: true,
       data: {
         user: { id: user.id, email: user.email, name: user.name },
         accessToken,
         refreshToken,
-        sessionId
+        sessionId,
       },
     });
   } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || "Server error" },
-      { status: 500 }
-    );
+    console.log("Error logging-In: ", error);
+    return errorResponse("Internal Server error");
   }
 }

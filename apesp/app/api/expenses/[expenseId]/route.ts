@@ -2,23 +2,25 @@ import { NextRequest } from "next/server";
 import { Decimal } from "decimal.js";
 import { z } from "zod";
 
+Decimal.set({ precision: 12 });
+
 import { GroupRole } from "@prisma/client";
-import { jobQueue } from "../../../../src/lib/queue";
-import { prisma } from "../../../../src/lib/db";
-import { withAuth } from "../../../../src/middleware/auth";
-import { checkGroupMembership } from "../../../../src/services/groupService";
+import { jobQueue } from "@/src/lib/queue";
+import { prisma } from "@/src/lib/db";
+import { withAuth } from "@/src/middleware/auth";
+import { checkGroupMembership } from "@/src/services/groupService";
 import {
   errorResponse,
   notFound,
   successResponse,
   noContent,
   forbidden,
-} from "../../../../src/lib/response";
-import { formatDetailedExpense } from "../../../../src/lib/formatter";
+} from "@/src/lib/response";
+import { formatDetailedExpense } from "@/src/lib/formatter";
 import {
   ExpenseBodySchema,
   validateAndProcessExpense,
-} from "../../../../src/services/expenseService";
+} from "@/src/services/expenseService";
 
 /**
  * GET /expenses/{expenseId}
@@ -53,12 +55,10 @@ const getHandler = async (
     );
   } catch (error: any) {
     console.log("Error fetching expense:", error);
-
     if (error.message.includes("token")) return errorResponse("Unauthorized");
     if (error.message === "NOT_FOUND_OR_UNAUTHORIZED") {
       return errorResponse("Expense not found or unauthorized");
     }
-
     return errorResponse("Internal server error");
   }
 };
@@ -165,10 +165,8 @@ const putHandler = async (
     );
   } catch (error: any) {
     console.log("Error updating expense:", error);
-
     if (error instanceof z.ZodError)
       return errorResponse("Invalid input", 400, "BAD_REQUEST", error.issues);
-
     if (error.message.includes("token")) return errorResponse("Unauthorized");
     if (error.message === "NOT_FOUND") return notFound("Expense");
     if (error.message === "Group ID cannot be changed") {
@@ -180,7 +178,6 @@ const putHandler = async (
     ) {
       return errorResponse(error.message, 400);
     }
-
     return errorResponse("Internal server error");
   }
 };
@@ -227,12 +224,10 @@ const deleteHandler = async (
     return noContent();
   } catch (error: any) {
     console.log("Error deleting expense:", error);
-
     if (error.message.includes("token")) return errorResponse("Unauthorized");
     if (error.message === "NOT_FOUND_OR_UNAUTHORIZED") {
       return errorResponse("Expense not found or unauthorized");
     }
-
     return errorResponse("Internal server error");
   }
 };

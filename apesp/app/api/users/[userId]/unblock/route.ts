@@ -1,14 +1,14 @@
 // app/api/users/[userId]/unblock/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { FriendshipStatus } from "@prisma/client";
-import { withAuth } from "../../../../../src/middleware/auth";
-import { prisma } from "../../../../../src/lib/db";
+import { withAuth } from "@/src/middleware/auth";
+import { prisma } from "@/src/lib/db";
 import {
   errorResponse,
   forbidden,
   noContent,
   unauthorized,
-} from "../../../../../src/lib/response";
+} from "@/src/lib/response";
 
 /**
  * DELETE /users/{userId}/unblock
@@ -46,16 +46,14 @@ const deleteHandler = async (
         },
       });
 
-      if (existingBlock) {
+      if (existingBlock)
         return forbidden("Cannot unblock a user who has blocked you");
-      }
     }
     return noContent();
   } catch (error: any) {
-    console.log("Error in DELETE unblocking the user: ", error);
-    if (error.message.includes("token")) {
-      return unauthorized();
-    }
+    console.log("Error unblocking the user: ", error);
+    if (error.message.includes("token")) return unauthorized();
+
     return errorResponse("Internal server error");
   }
 };

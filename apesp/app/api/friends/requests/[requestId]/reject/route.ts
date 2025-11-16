@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
-import { prisma } from "../../../../../../src/lib/db";
-import { withAuth } from "../../../../../../src/middleware/auth";
+import { prisma } from "@/src/lib/db";
+import { withAuth } from "@/src/middleware/auth";
 import { FriendshipStatus } from "@prisma/client";
 import {
   successResponse,
@@ -8,10 +8,8 @@ import {
   notFound,
   forbidden,
   badRequest,
-  noContent,
   conflict,
-  unauthorized,
-} from "../../../../../../src/lib/response";
+} from "@/src/lib/response";
 
 /**
  * DELETE /friends/requests/{requestId}/reject
@@ -27,18 +25,15 @@ const deleteHandler = async (
     const { requestId } = context.params;
 
     // Validate requestId format
-    if (!requestId || requestId.trim() === "") {
+    if (!requestId || requestId.trim() === "")
       return badRequest("Invalid request ID provided");
-    }
 
     const friendship = await prisma.friendship.findUnique({
       where: { id: requestId },
     });
 
     // 404: Request not found
-    if (!friendship) {
-      return notFound("Friend request not found");
-    }
+    if (!friendship) return notFound("Friend request not found");
 
     // 401: Unauthorized (User is not the requester OR addressee)
     if (
@@ -90,19 +85,15 @@ const deleteHandler = async (
       requestId,
     });
   } catch (error: any) {
-    console.error("Error in DELETE rejecting friend request:", error);
+    console.error("Error in rejecting friend request:", error);
     // Handle Prisma errors
-    if (error.code === "P2025") {
-      return notFound("Friend request not found");
-    }
+    if (error.code === "P2025") return notFound("Friend request not found");
 
-    if (error.message.includes("token")) {
-      return errorResponse("unauthorized");
-    }
+    if (error.message.includes("token")) return errorResponse("unauthorized");
 
-    if (error.message.includes("Unique constraint failed")) {
+    if (error.message.includes("Unique constraint failed"))
       return conflict("This friendship request already exists");
-    }
+
     return errorResponse("Failed to process request.");
   }
 };

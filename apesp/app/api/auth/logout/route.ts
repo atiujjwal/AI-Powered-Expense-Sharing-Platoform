@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "../../../../src/lib/db";
-import { withAuth } from "../../../../src/middleware/auth";
+import { NextRequest } from "next/server";
+import { prisma } from "@/src/lib/db";
+import { withAuth } from "@/src/middleware/auth";
 import { Prisma } from "@prisma/client";
+import { errorResponse, successResponse } from "@/src/lib/response";
 
 async function handler(
   req: NextRequest,
@@ -31,10 +32,7 @@ async function handler(
         }),
       ]);
 
-      return NextResponse.json({
-        success: true,
-        message: "Logged out from all devices.",
-      });
+      return successResponse("Logged out from all devices.");
     }
 
     // Default: logout only from this device
@@ -47,29 +45,20 @@ async function handler(
       }),
     ]);
 
-    return NextResponse.json({
-      success: true,
-      message: "Logged out from this device.",
-    });
+    return successResponse("Logged out from this device.");
   } catch (error) {
     console.error("Logout failed:", error);
 
-    // Handle Prisma-specific errors, like "Record to delete not found"
+    // Handle Prisma-specific errors:
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2025") {
         // This means the session was already deleted. We can consider this a "success".
-        return NextResponse.json({
-          success: true,
-          message: "Session already logged out.",
-        });
+        return errorResponse("Session already logged out.");
       }
     }
 
     // Generic server error
-    return NextResponse.json(
-      { success: false, message: "An error occurred during logout." },
-      { status: 500 }
-    );
+    return errorResponse("An error occurred during logout.");
   }
 }
 

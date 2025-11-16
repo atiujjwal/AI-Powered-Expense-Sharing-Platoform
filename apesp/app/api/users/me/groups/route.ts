@@ -1,10 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "../../../../../src/lib/db";
-import {
-  errorResponse,
-  successResponse,
-} from "../../../../../src/lib/response";
-import { withAuth } from "../../../../../src/middleware/auth";
+import { NextRequest } from "next/server";
+import { prisma } from "@/src/lib/db";
+import { errorResponse, successResponse } from "@/src/lib/response";
+import { withAuth } from "@/src/middleware/auth";
 
 /**
  * GET /users/me/groups
@@ -48,9 +45,7 @@ const getHandler = async (
     return successResponse("Groups fetched successfully", { groups: groups });
   } catch (error: any) {
     console.log("Error getting groups: ", error);
-    if (error.message.includes("token")) {
-      return errorResponse("unauthorized");
-    }
+    if (error.message.includes("token")) return errorResponse("unauthorized");
     return errorResponse("Internal server error");
   }
 };

@@ -1,12 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
-import { prisma } from "../../../../src/lib/db";
-import { withAuth } from "../../../../src/middleware/auth";
+import { prisma } from "@/src/lib/db";
+import { withAuth } from "@/src/middleware/auth";
 import {
+  badRequest,
   errorResponse,
   successResponse,
   unauthorized,
-} from "../../../../src/lib/response";
+} from "@/src/lib/response";
 
 const updateProfileSchema = z.object({
   name: z.string().min(1).optional(),
@@ -19,7 +20,6 @@ const updateProfileSchema = z.object({
  * GET /users/me
  * Retrieves the complete profile for the authenticated user.
  */
-
 const getHandler = async (
   request: NextRequest,
   payload: { userId: string; sessionId: string }
@@ -30,9 +30,7 @@ const getHandler = async (
       where: { id: userId, is_deleted: false },
     });
 
-    if (!user) {
-      return unauthorized();
-    }
+    if (!user) return unauthorized();
 
     const userProfile = {
       id: user.id,
@@ -46,6 +44,7 @@ const getHandler = async (
 
     return successResponse("User's Profile fetched successfully", userProfile);
   } catch (error: any) {
+    console.log("Error getting profile details: ", error);
     if (error.message.includes("token") || error.message.includes("header")) {
       return unauthorized();
     }
@@ -66,23 +65,20 @@ const patchHandler = async (
     const body = await request.json();
     const userId = payload.userId;
 
-    // 1. Validate input
+    // Validate input
     const parseResult = updateProfileSchema.safeParse(body);
-    if (!parseResult.success) {
-      return errorResponse("Invalid input");
-    }
+    if (!parseResult.success) return errorResponse("Invalid input");
 
-    if (!Object.keys(parseResult.data).length) {
-      return errorResponse("Invalid input");
-    }
+    if (!Object.keys(parseResult.data).length)
+      return badRequest("Invalid input");
 
-    // 3. Update user in DB
+    // Update user in DB
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: parseResult.data,
     });
 
-    // 4. Return updated profile
+    // Return updated profile
     const userProfile = {
       id: updatedUser.id,
       name: updatedUser.name,
@@ -98,10 +94,10 @@ const patchHandler = async (
       userProfile
     );
   } catch (error: any) {
-    console.log("Error while updating user's details: ", error);
-    if (error instanceof z.ZodError) {
-      return errorResponse("Invalid input", 400, "BAD_REQUEST", error.issues);
-    }
+    console.log("Error updating user's details: ", error);
+    if (error instanceof z.ZodError)
+      return badRequest("Invalid input", error.issues);
+
     if (error.message.includes("token") || error.message.includes("header")) {
       return unauthorized();
     }

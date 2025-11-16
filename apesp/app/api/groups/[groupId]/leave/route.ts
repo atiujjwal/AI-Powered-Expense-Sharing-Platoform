@@ -1,14 +1,14 @@
 // app/api/groups/[groupId]/leave/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { GroupRole } from "@prisma/client";
-import { prisma } from "../../../../../src/lib/db";
+import { prisma } from "@/src/lib/db";
 import {
   errorResponse,
   forbidden,
   noContent,
   notFound,
   unauthorized,
-} from "../../../../../src/lib/response";
+} from "@/src/lib/response";
 
 /**
  * POST /groups/{groupId}/leave
@@ -29,9 +29,7 @@ export async function postHandler(
       select: { owner_id: true },
     });
 
-    if (!group) {
-      return notFound("Group not found");
-    }
+    if (!group) return notFound("Group not found");
 
     // Business Logic: Prevent owner from leaving
     if (group.owner_id === authUserId) {
@@ -50,9 +48,7 @@ export async function postHandler(
       },
     });
 
-    if (!membership) {
-      return notFound("Group membership not found");
-    }
+    if (!membership) return notFound("Group membership not found");
 
     if (membership.role === GroupRole.ADMIN) {
       const adminCount = await prisma.groupMember.count({
@@ -79,9 +75,7 @@ export async function postHandler(
   } catch (error: any) {
     console.log("Error leaving group: ", error);
     if (error.message.includes("token")) return unauthorized();
-    if (error.code === "P2025") {
-      return notFound("Group or user membership");
-    }
+    if (error.code === "P2025") return notFound("Group or user membership");
     return errorResponse("Internal server error");
   }
 }

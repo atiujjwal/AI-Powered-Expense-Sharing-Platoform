@@ -1,16 +1,17 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { Decimal } from "decimal.js";
-import { prisma } from "../../../src/lib/db";
-import { withAuth } from "../../../src/middleware/auth";
 
-import { checkGroupMembership } from "../../../src/services/groupService";
-import { errorResponse, successResponse } from "../../../src/lib/response";
-import { jobQueue } from "../../../src/lib/queue";
+import { prisma } from "@/src/lib/db";
+import { withAuth } from "@/src/middleware/auth";
+
+import { checkGroupMembership } from "@/src/services/groupService";
+import { created, errorResponse, successResponse } from "@/src/lib/response";
+import { jobQueue } from "@/src/lib/queue";
 import {
   ExpenseBodySchema,
   validateAndProcessExpense,
-} from "../../../src/services/expenseService";
+} from "@/src/services/expenseService";
 
 Decimal.set({ precision: 12 });
 
@@ -47,7 +48,7 @@ const postHandler = async (
 
     // Create records in a single database transaction
     const newExpense = await prisma.$transaction(async (tx) => {
-        // Create the main Expense record
+      // Create the main Expense record
       const expense = await tx.expense.create({
         data: {
           group_id: parsedBody.group_id,
@@ -90,16 +91,12 @@ const postHandler = async (
     const completeExpense = await prisma.expense.findUnique({
       where: { id: newExpense.id },
       include: {
-        payers: true,       // might need formatting here
+        payers: true, // might need formatting here
         splits: true,
       },
     });
 
-    return successResponse(
-      "Expense created successfully",
-      completeExpense,
-      201
-    );
+    return created("Expense created successfully", completeExpense);
   } catch (error: any) {
     console.log("Error creating expense: ", error);
     if (error instanceof z.ZodError) {

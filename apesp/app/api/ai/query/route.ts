@@ -1,10 +1,10 @@
 // app/api/ai/query/route.ts
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { withAuth } from "../../../../src/middleware/auth";
-import { badRequest, errorResponse, successResponse } from "../../../../src/lib/response";
-import { NlpService } from "../../../../src/services/aiServices";
-import { AnalyticsService } from "../../../../src/services/analyticsServices";
+import { withAuth } from "@/src/middleware/auth";
+import { badRequest, errorResponse, successResponse } from "@/src/lib/response";
+import { NlpService } from "@/src/services/aiServices";
+import { AnalyticsService } from "@/src/services/analyticsServices";
 
 const querySchema = z.object({
   query: z.string().min(3, "Query is too short"),

@@ -1,22 +1,19 @@
 // app/api/groups/[groupId]/route.ts
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { prisma } from "../../../../src/lib/db";
-import { withAuth } from "../../../../src/middleware/auth";
+import { prisma } from "@/src/lib/db";
+import { withAuth } from "@/src/middleware/auth";
 import {
   checkGroupAdmin,
   checkGroupMembership,
-} from "../../../../src/services/groupService";
+} from "@/src/services/groupService";
 import {
   errorResponse,
   noContent,
   notFound,
   successResponse,
-} from "../../../../src/lib/response";
-import {
-  formatGroupMember,
-  formatPublicUser,
-} from "../../../../src/lib/formatter";
+} from "@/src/lib/response";
+import { formatGroupMember, formatPublicUser } from "@/src/lib/formatter";
 
 const updateGroupSchema = z.object({
   name: z.string().min(1).optional(),
@@ -54,9 +51,7 @@ const getHandler = async (
       },
     });
 
-    if (!group) {
-      return notFound("Group not found");
-    }
+    if (!group) return notFound("Group not found");
 
     // Format response as per spec
     const response = {

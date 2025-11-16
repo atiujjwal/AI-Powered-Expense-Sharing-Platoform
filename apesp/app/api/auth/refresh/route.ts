@@ -1,27 +1,23 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "../../../../src/lib/db";
+import { NextRequest } from "next/server";
+import { prisma } from "@/src/lib/db";
 import {
   verifyToken,
   generateToken,
   getTokenFromRequest,
-} from "../../../../src/lib/auth";
+} from "@/src/lib/auth";
+import {
+  errorResponse,
+  successResponse,
+  unauthorized,
+} from "@/src/lib/response";
 
 export async function POST(request: NextRequest) {
   try {
     const refreshToken = getTokenFromRequest(request);
-    if (!refreshToken) {
-      return NextResponse.json(
-        { error: "Unauthorized - No token" },
-        { status: 401 }
-      );
-    }
+    if (!refreshToken) return unauthorized();
 
     const payload = verifyToken(refreshToken, "refreshToken");
-    if (!payload)
-      return NextResponse.json(
-        { error: "Invalid refresh token" },
-        { status: 401 }
-      );
+    if (!payload) return unauthorized();
 
     // Lookup session
     const { userId, sessionId } = payload;
@@ -35,10 +31,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!tokenRecord || tokenRecord.expires_at < new Date())
-      return NextResponse.json(
-        { error: "Invalid/expired refresh token" },
-        { status: 401 }
-      );
+      return unauthorized();
 
     // Rotate tokens for this session
     const newAccessToken = generateToken(
@@ -64,16 +57,14 @@ export async function POST(request: NextRequest) {
     //delete existing token
     await prisma.userToken.delete({ where: { token: refreshToken } });
 
-    return NextResponse.json({
+    return successResponse("Tokens refreshed successfully", {
       success: true,
       accessToken: newAccessToken,
       refreshToken: newRefreshToken,
       sessionId,
     });
   } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || "Invalid refresh flow" },
-      { status: 401 }
-    );
+    console.log("Error refreshing tokens: ", error);
+    return errorResponse("Error refreshing tokens");
   }
 }

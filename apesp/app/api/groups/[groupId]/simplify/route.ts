@@ -1,13 +1,9 @@
 import { NextRequest } from "next/server";
-import { prisma } from "../../../../../src/lib/db";
-import { withAuth } from "../../../../../src/middleware/auth";
-import { checkGroupMembership } from "../../../../../src/services/groupService";
-import {
-  errorResponse,
-  successResponse,
-  notFound,
-} from "../../../../../src/lib/response";
-import { simplifyGroupDebts } from "../../../../../src/services/balanceService";
+import { prisma } from "@/src/lib/db";
+import { withAuth } from "@/src/middleware/auth";
+import { checkGroupMembership } from "@/src/services/groupService";
+import { errorResponse, successResponse } from "@/src/lib/response";
+import { simplifyGroupDebts } from "@/src/services/balanceService";
 
 /**
  * GET /groups/{groupId}/simplify

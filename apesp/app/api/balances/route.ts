@@ -1,11 +1,13 @@
 import { NextRequest } from "next/server";
 import { Decimal } from "decimal.js";
 import { User } from "@prisma/client";
-import { prisma } from "../../../src/lib/db";
-import { withAuth } from "../../../src/middleware/auth";
+import { prisma } from "@/src/lib/db";
+import { withAuth } from "@/src/middleware/auth";
 
-import { errorResponse, successResponse } from "../../../src/lib/response";
-import { formatPublicUser } from "../../../src/lib/formatter";
+Decimal.set({ precision: 12 });
+
+import { errorResponse, successResponse } from "@/src/lib/response";
+import { formatPublicUser } from "@/src/lib/formatter";
 
 /**
  * GET /balances

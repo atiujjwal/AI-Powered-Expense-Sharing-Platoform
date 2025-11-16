@@ -3,7 +3,6 @@ import { z } from "zod";
 import { SplitType } from "@prisma/client";
 import { Decimal } from "decimal.js";
 
-// Ensure high precision for all calculations
 Decimal.set({ precision: 12 });
 
 // --- Zod Schemas for Expense Body ---

@@ -1,13 +1,13 @@
 // app/api/ai/voice-expense/route.ts
 import { NextRequest } from "next/server";
-import { withAuth } from "../../../../src/middleware/auth";
+import { withAuth } from "@/src/middleware/auth";
 import {
   badRequest,
   errorResponse,
   successResponse,
-} from "../../../../src/lib/response";
-import { jobQueue } from "../../../../src/lib/queue";
-import { FileStorageService } from "../../../../src/services/aiServices";
+} from "@/src/lib/response";
+import { jobQueue } from "@/src/lib/queue";
+import { FileStorageService } from "@/src/services/aiServices";
 
 const MAX_FILE_SIZE_MB = 15;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;

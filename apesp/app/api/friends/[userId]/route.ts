@@ -1,13 +1,8 @@
-// app/api/friends/[userId]/route.ts
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "../../../../src/lib/db";
+import { NextRequest } from "next/server";
+import { prisma } from "@/src/lib/db";
 import { FriendshipStatus } from "@prisma/client";
-import { withAuth } from "../../../../src/middleware/auth";
-import {
-  errorResponse,
-  noContent,
-  unauthorized,
-} from "../../../../src/lib/response";
+import { withAuth } from "@/src/middleware/auth";
+import { errorResponse, noContent, notFound } from "@/src/lib/response";
 
 /**
  * DELETE /friends/{userId}
@@ -35,9 +30,7 @@ const deleteHandler = async (
     });
 
     // 404: Friendship not found. Idempotent: If not found, it's a success.
-    if (!friendship) {
-      return noContent();
-    }
+    if (!friendship) return notFound("Friendship not found");
 
     // Now, delete this friendship record.
     // We also delete any non-group balance between them.
@@ -60,7 +53,7 @@ const deleteHandler = async (
 
     return noContent();
   } catch (error: any) {
-    console.log("Error in DELETE friend: ", error);
+    console.log("Error deleting friend: ", error);
     if (error.message.includes("token")) {
       return errorResponse("unauthorized");
     }

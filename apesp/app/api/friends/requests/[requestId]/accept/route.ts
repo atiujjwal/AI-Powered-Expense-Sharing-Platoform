@@ -1,15 +1,14 @@
-// app/api/friends/requests/[requestId]/accept/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { FriendshipStatus } from "@prisma/client";
-import { prisma } from "../../../../../../src/lib/db";
-import { formatFriendshipResponse } from "../../../../../../src/lib/formatter";
-import { withAuth } from "../../../../../../src/middleware/auth";
+import { prisma } from "@/src/lib/db";
+import { formatFriendshipResponse } from "@/src/lib/formatter";
+import { withAuth } from "@/src/middleware/auth";
 import {
   errorResponse,
   notFound,
   successResponse,
   unauthorized,
-} from "../../../../../../src/lib/response";
+} from "@/src/lib/response";
 
 /**
  * POST /friends/requests/{requestId}/accept
@@ -29,14 +28,10 @@ const postHandler = async (
     });
 
     // 404: Request not found
-    if (!friendship) {
-      return notFound("Request not found");
-    }
+    if (!friendship) return notFound("Request not found");
 
     // 401: Unauthorized (User is not the addressee of this request)
-    if (friendship.addressee_id !== userId) {
-      return unauthorized();
-    }
+    if (friendship.addressee_id !== userId) return unauthorized();
 
     // Check if already accepted to maintain idempotency
     if (friendship.status === FriendshipStatus.ACCEPTED) {
@@ -68,7 +63,7 @@ const postHandler = async (
       formatFriendshipResponse(updatedFriendship)
     );
   } catch (error: any) {
-    console.log("Error in POST accepting friend request: ", error);
+    console.log("Error accepting friend request: ", error);
     if (error.message.includes("token")) {
       return errorResponse("unauthorized");
     }

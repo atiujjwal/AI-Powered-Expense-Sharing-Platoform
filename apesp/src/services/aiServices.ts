@@ -1,6 +1,8 @@
 // src/lib/ai-services.ts
 import { Decimal } from "decimal.js";
-import { v4 as uuidv4 } from "uuid"; 
+import { v4 as uuidv4 } from "uuid";
+
+Decimal.set({ precision: 12 });
 
 // --- AI Service Response Types ---
 export interface DraftExpense {

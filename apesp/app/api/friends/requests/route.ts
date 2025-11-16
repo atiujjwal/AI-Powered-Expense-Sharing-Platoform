@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { z } from "zod";
 import { FriendshipStatus } from "@prisma/client";
-import { prisma } from "../../../../src/lib/db";
-import { formatFriendshipResponse } from "../../../../src/lib/formatter";
-import { withAuth } from "../../../../src/middleware/auth";
+import { prisma } from "@/src/lib/db";
+import { formatFriendshipResponse } from "@/src/lib/formatter";
+import { withAuth } from "@/src/middleware/auth";
 import {
   badRequest,
   conflict,
@@ -12,7 +12,7 @@ import {
   notFound,
   successResponse,
   unauthorized,
-} from "../../../../src/lib/response";
+} from "@/src/lib/response";
 
 const postSchema = z.object({
   addressee_id: z.string().cuid({ message: "Invalid user ID" }),
@@ -32,17 +32,13 @@ const postHandler = async (
 
     const { addressee_id } = postSchema.parse(body);
 
-    if (requesterId === addressee_id) {
-      return badRequest("Cannot add yourself");
-    }
+    if (requesterId === addressee_id) return badRequest("Cannot add yourself");
 
     const addressee = await prisma.user.findUnique({
       where: { id: addressee_id, is_deleted: false },
     });
     // 400: Cannot add yourself
-    if (!addressee) {
-      return notFound("User not found");
-    }
+    if (!addressee) return notFound("User not found");
 
     const existingFriendship = await prisma.friendship.findFirst({
       where: {
@@ -54,9 +50,8 @@ const postHandler = async (
     });
 
     // 409: A friendship (or pending request) already exists.
-    if (existingFriendship) {
+    if (existingFriendship)
       return conflict("A friendship or request already exists");
-    }
 
     // Action: Create new Friendship record
     const newFriendship = await prisma.friendship.create({
@@ -76,13 +71,12 @@ const postHandler = async (
       formatFriendshipResponse(newFriendship)
     );
   } catch (error: any) {
-    console.error("Error in POST sending friend request:", error);
-    if (error instanceof z.ZodError) {
-      return badRequest("Invalid input");
-    }
-    if (error.message.includes("token")) {
-      return unauthorized();
-    }
+    console.error("Error sending friend request:", error);
+    if (error instanceof z.ZodError)
+      return badRequest("Invalid input", error.issues);
+
+    if (error.message.includes("token")) return unauthorized();
+
     return errorResponse("Internal Server Error");
   }
 };
@@ -133,10 +127,9 @@ const getHandler = async (
       requests: formattedRequests,
     });
   } catch (error: any) {
-    console.error("Error in GET getting pending friend requests:", error);
-    if (error.message.includes("token")) {
-      return errorResponse("unauthorized");
-    }
+    console.error("Error getting pending friend requests:", error);
+    if (error.message.includes("token")) return errorResponse("unauthorized");
+
     return errorResponse("Internal server error");
   }
 };

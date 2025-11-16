@@ -1,12 +1,9 @@
 import { z } from "zod";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { headers } from "next/headers";
-import { prisma } from "../../../../src/lib/db";
-import {
-  generateToken,
-  hashPassword,
-  parseDevice,
-} from "../../../../src/lib/auth";
+import { prisma } from "@/src/lib/db";
+import { generateToken, hashPassword, parseDevice } from "@/src/lib/auth";
+import { badRequest, errorResponse, successResponse } from "@/src/lib/response";
 
 const registerSchema = z.object({
   name: z.string().min(2),
@@ -31,12 +28,7 @@ export async function POST(request: NextRequest) {
     const existingUser = await prisma.user.findUnique({
       where: { email: data.email },
     });
-    if (existingUser) {
-      return NextResponse.json(
-        { error: "User already exists" },
-        { status: 400 }
-      );
-    }
+    if (existingUser) return badRequest("User already exists");
 
     // Hash password
     const hashedPassword = await hashPassword(data.password);
@@ -97,39 +89,29 @@ export async function POST(request: NextRequest) {
     });
 
     // Return both tokens and session info to client
-    return NextResponse.json(
-      {
-        success: true,
-        data: {
-          user: {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            date_of_birth: user.dob,
-            avatar_url: user.avatar,
-            country: user.country,
-            currency: user.currency,
-            timezone: user.timezone,
-          },
-          accessToken,
-          refreshToken,
-          sessionId,
+    return successResponse("User registered successfully", {
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          date_of_birth: user.dob,
+          avatar_url: user.avatar,
+          country: user.country,
+          currency: user.currency,
+          timezone: user.timezone,
         },
+        accessToken,
+        refreshToken,
+        sessionId,
       },
-      { status: 201 }
-    );
+    });
   } catch (error) {
-    console.log("Error in auth/register: ", error);
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: "Invalid request body", details: error.issues },
-        { status: 400 }
-      );
-    }
+    console.log("Error registering the user: ", error);
+    if (error instanceof z.ZodError)
+      return badRequest("Invalid request body", error.issues);
 
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return errorResponse("Internal server error");
   }
 }

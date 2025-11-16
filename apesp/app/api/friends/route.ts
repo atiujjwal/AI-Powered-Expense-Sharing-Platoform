@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "../../../src/lib/db";
+import { NextRequest } from "next/server";
+import { prisma } from "@/src/lib/db";
 import { FriendshipStatus } from "@prisma/client";
-import { formatPublicUser } from "../../../src/lib/formatter";
-import { withAuth } from "../../../src/middleware/auth";
-import { errorResponse, successResponse } from "../../../src/lib/response";
+import { formatPublicUser } from "@/src/lib/formatter";
+import { withAuth } from "@/src/middleware/auth";
+import { errorResponse, successResponse } from "@/src/lib/response";
 
 /**
  * GET /friends

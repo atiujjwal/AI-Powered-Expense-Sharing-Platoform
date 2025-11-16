@@ -1,16 +1,15 @@
 import { NextRequest } from "next/server";
-import { prisma } from "../../../../../src/lib/db";
-import { withAuth } from "../../../../../src/middleware/auth";
-
-import {
-  errorResponse,
-  successResponse,
-} from "../../../../../src/lib/response";
-
 import { Decimal } from "decimal.js";
+
+import { prisma } from "@/src/lib/db";
 import { User } from "@prisma/client";
-import { checkGroupMembership } from "../../../../../src/services/groupService";
-import { formatPublicUser } from "../../../../../src/lib/formatter";
+
+import { withAuth } from "@/src/middleware/auth";
+import { errorResponse, successResponse } from "@/src/lib/response";
+import { checkGroupMembership } from "@/src/services/groupService";
+import { formatPublicUser } from "@/src/lib/formatter";
+
+Decimal.set({ precision: 12 });
 
 /**
  * GET /balances/groups/{groupId}

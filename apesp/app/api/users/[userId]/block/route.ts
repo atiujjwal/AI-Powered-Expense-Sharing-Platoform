@@ -1,5 +1,5 @@
 // app/api/users/[userId]/block/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 
 import { FriendshipStatus } from "@prisma/client";
 import {
@@ -8,9 +8,9 @@ import {
   notFound,
   successResponse,
   unauthorized,
-} from "../../../../../src/lib/response";
-import { prisma } from "../../../../../src/lib/db";
-import { withAuth } from "../../../../../src/middleware/auth";
+} from "@/src/lib/response";
+import { prisma } from "@/src/lib/db";
+import { withAuth } from "@/src/middleware/auth";
 
 /**
  * POST /users/{userId}/block
@@ -26,17 +26,13 @@ const postHandler = async (
     const { userId: userToBlockId } = context.params;
 
     // 400: Cannot block yourself
-    if (myId === userToBlockId) {
-      return badRequest("Cannot block yourself");
-    }
+    if (myId === userToBlockId) return badRequest("Cannot block yourself");
 
     // 404: User not found
     const userToBlock = await prisma.user.findUnique({
       where: { id: userToBlockId, is_deleted: false },
     });
-    if (!userToBlock) {
-      return notFound("User not found");
-    }
+    if (!userToBlock) return notFound("User not found");
 
     // Determine alphabetical order for user_A_id and user_B_id
     const [user_A_id, user_B_id] = [myId, userToBlockId].sort();
@@ -77,7 +73,7 @@ const postHandler = async (
       status: blockedFriendship.status,
     });
   } catch (error: any) {
-    console.log("Error in POST blocking the user: ", error);
+    console.log("Error blocking the user: ", error);
     if (error.message.includes("token")) {
       return unauthorized();
     }

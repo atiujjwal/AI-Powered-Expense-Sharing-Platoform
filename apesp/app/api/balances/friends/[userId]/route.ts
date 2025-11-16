@@ -2,8 +2,10 @@
 import { NextRequest } from "next/server";
 import { Decimal } from "decimal.js";
 
-import { prisma } from "../../../../../src/lib/db";
-import { withAuth } from "../../../../../src/middleware/auth";
+Decimal.set({ precision: 12 });
+
+import { prisma } from "@/src/lib/db";
+import { withAuth } from "@/src/middleware/auth";
 
 import {
   errorResponse,
@@ -11,7 +13,7 @@ import {
   notFound,
   badRequest,
   forbidden,
-} from "../../../../../src/lib/response";
+} from "@/src/lib/response";
 
 /**
  * GET /balances/friends/{userId}
@@ -35,9 +37,7 @@ const getHandler = async (
       where: { id: friendId, is_deleted: false },
     });
 
-    if (!friend) {
-      return notFound("User not found");
-    }
+    if (!friend) return notFound("User not found");
 
     // Sort IDs to match Balance table convention
     const [user_A_id, user_B_id] = [myId, friendId].sort();

@@ -1,13 +1,10 @@
 // app/api/groups/[groupId]/expenses/route.ts
 import { NextRequest } from "next/server";
-import { prisma } from "../../../../../src/lib/db";
-import { withAuth } from "../../../../../src/middleware/auth";
+import { prisma } from "@/src/lib/db";
+import { withAuth } from "@/src/middleware/auth";
 
-import { checkGroupMembership } from "../../../../../src/services/groupService";
-import {
-  errorResponse,
-  successResponse,
-} from "../../../../../src/lib/response";
+import { checkGroupMembership } from "@/src/services/groupService";
+import { errorResponse, successResponse } from "@/src/lib/response";
 import { ExpenseStatus } from "@prisma/client";
 
 /**

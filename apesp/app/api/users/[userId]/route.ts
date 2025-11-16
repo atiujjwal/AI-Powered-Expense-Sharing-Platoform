@@ -1,15 +1,14 @@
 // app/api/users/[userId]/route.ts
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "../../../../src/lib/db";
-import { withAuth } from "../../../../src/middleware/auth";
-import { Prisma } from "@prisma/client";
+import { NextRequest } from "next/server";
+import { prisma } from "@/src/lib/db";
+import { withAuth } from "@/src/middleware/auth";
 import {
   badRequest,
   errorResponse,
   notFound,
   successResponse,
   unauthorized,
-} from "../../../../src/lib/response";
+} from "@/src/lib/response";
 
 /**
  * GET /users/{userId}
@@ -23,17 +22,13 @@ export async function getHandler(
   try {
     const { userId } = context.params;
 
-    if (!userId) {
-      return badRequest("User ID is required");
-    }
+    if (!userId) return badRequest("User ID is required");
 
     const user = await prisma.user.findUnique({
       where: { id: userId, is_deleted: false },
     });
 
-    if (!user) {
-      return notFound("User not found");
-    }
+    if (!user) return notFound("User not found");
 
     const publicProfile = {
       id: user.id,
@@ -46,6 +41,8 @@ export async function getHandler(
       publicProfile
     );
   } catch (error: any) {
+    console.log("Error getting users details: ", error);
+
     if (error.message.includes("token") || error.message.includes("header")) {
       return unauthorized();
     }

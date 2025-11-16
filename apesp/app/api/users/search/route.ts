@@ -1,18 +1,13 @@
 // app/api/users/search/route.ts
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "../../../../src/lib/db";
-import { withAuth } from "../../../../src/middleware/auth";
-import {
-  badRequest,
-  errorResponse,
-  successResponse,
-} from "../../../../src/lib/response";
+import { NextRequest } from "next/server";
+import { prisma } from "@/src/lib/db";
+import { withAuth } from "@/src/middleware/auth";
+import { badRequest, errorResponse, successResponse } from "@/src/lib/response";
 
 /**
  * GET /users/search
  * Searches for users by name or email.
  */
-
 const getHandler = async (
   request: NextRequest,
   payload: { userId: string }
@@ -23,9 +18,8 @@ const getHandler = async (
     const limit = parseInt(searchParams.get("limit") || "20");
     const offset = parseInt(searchParams.get("offset") || "0");
 
-    if (!query || query.trim() === "") {
+    if (!query || query.trim() === "")
       return badRequest("Query parameter is missing");
-    }
 
     const myId = payload.userId;
 
@@ -62,9 +56,9 @@ const getHandler = async (
     });
   } catch (error: any) {
     if (error.message.includes("token") || error.message.includes("header")) {
-      return errorResponse("Unauthorized", 500);
+      return errorResponse("Unauthorized");
     }
-    return errorResponse("Internal server error", 500);
+    return errorResponse("Internal server error");
   }
 };
 

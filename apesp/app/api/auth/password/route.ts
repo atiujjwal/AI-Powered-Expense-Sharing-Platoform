@@ -1,8 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "../../../../src/lib/db";
-import { hashPassword, comparePassword } from "../../../../src/lib/auth";
+import { NextRequest } from "next/server";
+import { prisma } from "@/src/lib/db";
+import { hashPassword, comparePassword } from "@/src/lib/auth";
 import { z } from "zod";
-import { withAuth } from "../../../../src/middleware/auth";
+import { withAuth } from "@/src/middleware/auth";
+import {
+  badRequest,
+  errorResponse,
+  forbidden,
+  notFound,
+} from "@/src/lib/response";
 // import { withAuth } from "@/middleware/withAuth";
 
 // For forgot password flow
@@ -22,27 +28,18 @@ const changeSchema = z.object({
 // Internal handler for authenticated password change
 async function changePasswordHandler(
   req: NextRequest,
-  payload: { userId: string | number }
+  payload: { userId: string }
 ) {
+  const { userId } = payload;
   const body = await req.json();
   const { oldPassword, newPassword } = changeSchema.parse(body);
 
-  // Find user
-  const userId =
-    typeof payload.userId === "string"
-      ? parseInt(payload.userId, 10)
-      : payload.userId;
   const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user)
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  if (!user) return notFound("User not found");
 
   // Validate old password
   const correct = await comparePassword(oldPassword, user.password);
-  if (!correct)
-    return NextResponse.json(
-      { error: "Incorrect old password" },
-      { status: 403 }
-    );
+  if (!correct) return forbidden("Incorrect old password");
 
   // Hash and update to new password
   const hashed = await hashPassword(newPassword);
@@ -51,17 +48,14 @@ async function changePasswordHandler(
     data: { password: hashed },
   });
 
-  return NextResponse.json({
-    success: true,
-    message: "Password changed successfully",
-  });
+  return errorResponse("Password changed successfully");
 }
 
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
 
-    // // 1. Forgot password flow (unauthenticated)
+    // // // Forgot password flow (unauthenticated)
     // if (body.type === "forgot") {
     //   const { email, password } = forgotSchema.parse(body);
 
@@ -75,11 +69,7 @@ export async function PATCH(req: NextRequest) {
     //       expires_at: { gt: tenMinsAgo },
     //     },
     //   });
-    //   if (!verifiedOtp)
-    //     return NextResponse.json(
-    //       { error: "OTP not verified for this user in the last 10 min" },
-    //       { status: 403 }
-    //     );
+    //   if (!verifiedOtp) return forbidden();
 
     //   // Update password
     //   const hashed = await hashPassword(password);
@@ -94,31 +84,20 @@ export async function PATCH(req: NextRequest) {
     //     data: { used: true },
     //   });
 
-    //   return NextResponse.json({
-    //     success: true,
-    //     message: "Password reset successful",
-    //   });
+    //   return successResponse("Password reset successful");
     // }
 
-    // // 2. Change password flow (authenticated, uses withAuth)
+    // // Change password flow (authenticated, uses withAuth)
     // if (body.type === "change") {
-    //   return await withAuth(changePasswordHandler)(req);
+    //   // return await withAuth(changePasswordHandler)(req);
     // }
 
     // Invalid type
-    return NextResponse.json(
-      { error: "Invalid request type" },
-      { status: 400 }
-    );
+    return badRequest("Invalid request type");
   } catch (error) {
+    console.log("Error updating password: ", error);
     if (error instanceof z.ZodError)
-      return NextResponse.json(
-        { error: "Invalid request", details: error.issues },
-        { status: 400 }
-      );
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+      return badRequest("Invalid request", error.issues);
+    return badRequest("Internal server error");
   }
 }

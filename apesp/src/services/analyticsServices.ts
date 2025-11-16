@@ -2,6 +2,8 @@ import { z } from "zod";
 import { Decimal } from "decimal.js";
 import { prisma } from "../lib/db";
 
+Decimal.set({ precision: 12 });
+
 // Validate YYYY or YYYY-MM
 const periodSchema = z.string().regex(/^\d{4}(-\d{2})?$/);
 
@@ -38,12 +40,12 @@ export class AnalyticsService {
       whereClause.category = category;
     }
 
-    // 1. Read from the denormalized summary table
+    // Read from the denormalized summary table
     const summaries = await prisma.expenseSummary.findMany({
       where: whereClause,
     });
 
-    // 2. Aggregate the results
+    // Aggregate the results
     let total_spent = new Decimal(0);
     const categoryMap = new Map<string, Decimal>();
 

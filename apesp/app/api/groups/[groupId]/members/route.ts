@@ -1,23 +1,23 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { prisma } from "../../../../../src/lib/db";
-import { withAuth } from "../../../../../src/middleware/auth";
+
+import { prisma } from "@/src/lib/db";
+import { GroupRole } from "@prisma/client";
+import { withAuth } from "@/src/middleware/auth";
 
 import {
   checkGroupMembership,
   checkGroupAdmin,
-} from "../../../../../src/services/groupService";
+} from "@/src/services/groupService";
 
 import {
   errorResponse,
   successResponse,
   notFound,
   created,
-} from "../../../../../src/lib/response";
+} from "@/src/lib/response";
 
-import { formatGroupMember } from "../../../../../src/lib/formatter";
-
-import { GroupRole } from "@prisma/client";
+import { formatGroupMember } from "@/src/lib/formatter";
 
 const addMemberSchema = z.object({
   user_id: z.string().cuid(),
@@ -100,9 +100,7 @@ const postHandler = async (
       where: { id: userToAddId, is_deleted: false },
     });
 
-    if (!userToAdd) {
-      return notFound("User");
-    }
+    if (!userToAdd) return notFound("User not found");
 
     // 409: User is already a member
     const existingMembership = await prisma.groupMember.findUnique({
@@ -114,9 +112,8 @@ const postHandler = async (
       },
     });
 
-    if (existingMembership) {
+    if (existingMembership)
       return errorResponse("User is already a member", 409);
-    }
 
     // Create membership
     const newMember = await prisma.groupMember.create({
@@ -139,7 +136,7 @@ const postHandler = async (
     if (error.message.includes("token")) return errorResponse("Unauthorized");
     if (error.message === "FORBIDDEN") return errorResponse("Forbidden");
     if (error.message === "NOT_FOUND_OR_UNAUTHORIZED") {
-      return notFound("Group"); // 404
+      return notFound("Group not found"); // 404
     }
     return errorResponse("Internal server error");
   }

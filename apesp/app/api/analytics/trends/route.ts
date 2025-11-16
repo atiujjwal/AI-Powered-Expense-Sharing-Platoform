@@ -3,10 +3,12 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { Decimal } from "decimal.js";
 
-import { prisma } from "../../../../src/lib/db";
-import { withAuth } from "../../../../src/middleware/auth";
+Decimal.set({ precision: 12 });
 
-import { errorResponse, successResponse } from "../../../../src/lib/response";
+import { prisma } from "@/src/lib/db";
+import { withAuth } from "@/src/middleware/auth";
+
+import { errorResponse, successResponse } from "@/src/lib/response";
 
 // Validate YYYY or YYYY-MM
 const periodSchema = z.string().regex(/^\d{4}(-\d{2})?$/);

@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { prisma } from "../../../../../../src/lib/db";
-import { withAuth } from "../../../../../../src/middleware/auth";
+import { prisma } from "@/src/lib/db";
+import { withAuth } from "@/src/middleware/auth";
 
-import { checkGroupAdmin } from "../../../../../../src/services/groupService";
+import { checkGroupAdmin } from "@/src/services/groupService";
 
 import {
   errorResponse,
@@ -12,9 +12,9 @@ import {
   notFound,
   noContent,
   successResponse,
-} from "../../../../../../src/lib/response";
+} from "@/src/lib/response";
 
-import { formatGroupMember } from "../../../../../../src/lib/formatter";
+import { formatGroupMember } from "@/src/lib/formatter";
 import { GroupRole } from "@prisma/client";
 
 const updateRoleSchema = z.object({
@@ -46,11 +46,10 @@ const deleteHandler = async (
     if (!group) return notFound("Group not found");
 
     // 403: Forbidden (User is not an ADMIN).
-    if (group.owner_id === userToRemoveId) {
+    if (group.owner_id === userToRemoveId)
       return forbidden(
         "Cannot remove the group owner. Transfer ownership first."
       );
-    }
 
     // Prevent removing last admin + (self-removal protection)
     if (authUserId === userToRemoveId) {
@@ -61,9 +60,8 @@ const deleteHandler = async (
         },
       });
 
-      if (adminCount <= 1) {
+      if (adminCount <= 1)
         return forbidden("Cannot remove the last admin from the group.");
-      }
     }
 
     // 404: Group or User not found (handled by delete operation)
@@ -76,17 +74,17 @@ const deleteHandler = async (
       },
     });
 
-    return noContent(); // 204
+    return noContent();
   } catch (error: any) {
     console.log("Error removing group member:", error);
     if (error.message.includes("token"))
       return errorResponse("Unauthorized", 401);
     if (error.message === "FORBIDDEN") return forbidden();
-    if (error.message === "NOT_FOUND_OR_UNAUTHORIZED") {
-      return notFound("Group");
-    }
+    if (error.message === "NOT_FOUND_OR_UNAUTHORIZED")
+      return notFound("Group not found");
+
     // Prisma: record not found
-    if (error.code === "P2025") return notFound("Member");
+    if (error.code === "P2025") return notFound("Member not found");
     return errorResponse("Internal server error");
   }
 };
@@ -110,9 +108,7 @@ const patchHandler = async (
     await checkGroupAdmin(authUserId, groupId);
 
     const parse = updateRoleSchema.safeParse(body);
-    if (!parse.success) {
-      return badRequest("Invalid input", parse.error.issues);
-    }
+    if (!parse.success) return badRequest("Invalid input", parse.error.issues);
 
     const { role } = parse.data;
 
@@ -122,7 +118,7 @@ const patchHandler = async (
       select: { owner_id: true },
     });
 
-    if (!group) return notFound("Group");
+    if (!group) return notFound("Group not found");
 
     // Prevent owner from being demoted
     if (group.owner_id === userToUpdateId && role === GroupRole.MEMBER) {
@@ -147,9 +143,7 @@ const patchHandler = async (
           where: { group_id: groupId, role: GroupRole.ADMIN },
         });
 
-        if (adminCount <= 1) {
-          return forbidden("Cannot demote the last admin.");
-        }
+        if (adminCount <= 1) return forbidden("Cannot demote the last admin.");
       }
     }
 
@@ -178,9 +172,9 @@ const patchHandler = async (
       return errorResponse("Unauthorized", 401);
     if (error.message === "FORBIDDEN") return forbidden();
     if (error.message === "NOT_FOUND_OR_UNAUTHORIZED") {
-      return notFound("Group");
+      return notFound("Group not found");
     }
-    if (error.code === "P2025") return notFound("Member");
+    if (error.code === "P2025") return notFound("Member not found");
     return errorResponse("Internal server error");
   }
 };

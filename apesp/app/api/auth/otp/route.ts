@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "../../../../src/lib/db";
+import { badRequest, errorResponse, successResponse } from "@/src/lib/response";
+import { NextRequest } from "next/server";
 import { z } from "zod";
 
 // Utility: Generate 6-digit random OTP
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
     // TODO: Actually send the OTP (email, SMS, etc).
     // code to send otp to users
 
-    return NextResponse.json({
+    return successResponse("OTP sent successfully", {
       success: true,
       message: "OTP sent",
       //   otp, // REMOVE in production!
@@ -54,15 +54,10 @@ export async function GET(req: NextRequest) {
       expiresAt: "2005-11-13",
     });
   } catch (error) {
+    console.log("Error sending OTP: ", error);
     if (error instanceof z.ZodError)
-      return NextResponse.json(
-        { error: "Invalid request", details: error.issues },
-        { status: 400 }
-      );
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+      return badRequest("Invalid request", error.issues);
+    return errorResponse("Internal server error");
   }
 }
 
@@ -98,16 +93,11 @@ export async function POST(req: NextRequest) {
     //   data: { used: true },
     // });
 
-    return NextResponse.json({ success: true, message: "OTP verified" });
+    return successResponse("OTP verified");
   } catch (error) {
+    console.log("Error getting OTP: ", error);
     if (error instanceof z.ZodError)
-      return NextResponse.json(
-        { error: "Invalid request", details: error.issues },
-        { status: 400 }
-      );
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+      return badRequest("Invalid request", error.issues);
+    return errorResponse("Internal server error");
   }
 }

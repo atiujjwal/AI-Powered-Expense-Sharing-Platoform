@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { Decimal } from "decimal.js";
 
+Decimal.set({ precision: 12 });
+
 export const createSettlementSchema = z.object({
   receiver_id: z.string().cuid(),
   group_id: z.string().cuid().nullable().optional(),

@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getTokenFromRequest, verifyToken } from "../lib/auth";
+import { errorResponse, unauthorized } from "../lib/response";
 
 type AppRouteHandler = (
   req: NextRequest,
@@ -10,28 +11,15 @@ type AppRouteHandler = (
 export function withAuth(handler: AppRouteHandler) {
   return async (req: NextRequest, context: { params: any }) => {
     const token = getTokenFromRequest(req);
-    if (!token) {
-      return NextResponse.json(
-        { error: "Unauthorized - No token" },
-        { status: 401 }
-      );
-    }
+    if (!token) return unauthorized("Unauthorized - No token");
 
     try {
       const payload = verifyToken(token, "accessToken");
-      if (!payload) {
-        return NextResponse.json(
-          { error: "Unauthorized - Invalid token" },
-          { status: 401 }
-        );
-      }
+      if (!payload) return unauthorized("Unauthorized - Invalid token");
       const resolvedParams = await context.params;
       return handler(req, payload, { params: resolvedParams });
     } catch (error) {
-      return NextResponse.json(
-        { error: "Unauthorized - Token error" },
-        { status: 401 }
-      );
+      return errorResponse("Unauthorized - Token error");
     }
   };
 }

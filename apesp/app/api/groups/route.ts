@@ -1,10 +1,10 @@
 // app/api/groups/route.ts
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { prisma } from "../../../src/lib/db";
+import { prisma } from "@/src/lib/db";
 import { GroupRole } from "@prisma/client";
-import { withAuth } from "../../../src/middleware/auth";
-import { created, errorResponse } from "../../../src/lib/response";
+import { withAuth } from "@/src/middleware/auth";
+import { created, errorResponse } from "@/src/lib/response";
 
 const createGroupSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -71,9 +71,7 @@ const postHandler = async (
         error.issues
       );
     }
-    if (error.message.includes("token")) {
-      return errorResponse("unauthorized");
-    }
+    if (error.message.includes("token")) return errorResponse("unauthorized");
     return errorResponse("Internal server error");
   }
 };
