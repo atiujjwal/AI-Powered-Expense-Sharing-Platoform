@@ -46,7 +46,6 @@ export async function GET(req: NextRequest) {
     // code to send otp to users
 
     return successResponse("OTP sent successfully", {
-      success: true,
       message: "OTP sent",
       //   otp, // REMOVE in production!
       // expiresAt,
