@@ -7,6 +7,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+
 // ----------------------------------------
 // Enums
 // ----------------------------------------
@@ -82,7 +83,7 @@ model User {
   subscriptions Subscription[] // (1 User → Many each): Personal finance personal data isolated per user.
   savings_goals SavingsGoal[] // (1 User → Many each): Personal finance personal data isolated per user.
   groups        Group[] // as owner) (1 User → Many Groups): Creator ownership distinct from regular membership.
-  expenses      Expense[] // 
+  expenses      Expense[] //
 
   spendingSummary ExpenseSummary[]
   spendingTrend   ExpenseTrend[]
@@ -187,10 +188,11 @@ model GroupMember {
 // Purpose: Stores core details of a transaction (metadata only).
 model Expense {
   id            String        @id @default(cuid()) // Unique expense identifier
-  group_id      String // FK → Group
+  group_id      String? // FK → Group
   created_by_id String // FK → User (creator)
   description   String // Expense description
   amount        Decimal       @db.Decimal(12, 2) // Total amount
+  split_type    SplitType     @default(EQUAL)
   currency      String        @default("INR") // Currency code
   category      String // Category name
   date          DateTime // Expense date
@@ -200,12 +202,12 @@ model Expense {
   created_at    DateTime      @default(now()) // Creation timestamp
   updated_at    DateTime      @updatedAt // Last updated timestamp
 
-  group      Group          @relation(fields: [group_id], references: [id], onDelete: Cascade) //  (FK group_id): Many expenses belong to one group. Cascading delete ensures no orphaned expenses if group is deleted.
-  created_by User           @relation("createdBy", fields: [created_by_id], references: [id], onDelete: Restrict) //  (FK created_by_id): One user created the expense (the originator, not necessarily the payer). Deletion restricted to prevent orphaning historical records.
+  group      Group?         @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  created_by User           @relation("createdBy", fields: [created_by_id], references: [id], onDelete: Restrict)
   payers     ExpensePayer[] // (1Expense → Many payers)
   splits     ExpenseSplit[] // (1Expense → Multiple splits)
-  user       User?          @relation(fields: [userId], references: [id]) // i think if user paid whole
-  userId     String?
+  user       User?          @relation(fields: [friend_id], references: [id]) // i think if user paid whole
+  friend_id  String? // for non group expenses
 
   @@index([group_id])
   @@index([created_by_id])
