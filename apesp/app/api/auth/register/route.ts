@@ -90,22 +90,19 @@ export async function POST(request: NextRequest) {
 
     // Return both tokens and session info to client
     return successResponse("User registered successfully", {
-      success: true,
-      data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          date_of_birth: user.dob,
-          avatar_url: user.avatar,
-          country: user.country,
-          currency: user.currency,
-          timezone: user.timezone,
-        },
-        accessToken,
-        refreshToken,
-        sessionId,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        date_of_birth: user.dob,
+        avatar_url: user.avatar,
+        country: user.country,
+        currency: user.currency,
+        timezone: user.timezone,
       },
+      accessToken,
+      refreshToken,
+      sessionId,
     });
   } catch (error) {
     console.log("Error registering the user: ", error);

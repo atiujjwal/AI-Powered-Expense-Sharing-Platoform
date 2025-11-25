@@ -58,7 +58,6 @@ export async function POST(request: NextRequest) {
     await prisma.userToken.delete({ where: { token: refreshToken } });
 
     return successResponse("Tokens refreshed successfully", {
-      success: true,
       accessToken: newAccessToken,
       refreshToken: newRefreshToken,
       sessionId,
