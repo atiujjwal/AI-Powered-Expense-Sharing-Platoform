@@ -59,13 +59,10 @@ export async function POST(request: NextRequest) {
 
     // Return user and access token (short-lived)
     return successResponse("Login successful", {
-      success: true,
-      data: {
-        user: { id: user.id, email: user.email, name: user.name },
-        accessToken,
-        refreshToken,
-        sessionId,
-      },
+      user: { id: user.id, email: user.email, name: user.name },
+      accessToken,
+      refreshToken,
+      sessionId,
     });
   } catch (error: any) {
     console.log("Error logging-In: ", error);
