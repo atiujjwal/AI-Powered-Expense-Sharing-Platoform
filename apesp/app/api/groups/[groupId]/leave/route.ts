@@ -8,16 +8,17 @@ import {
   notFound,
   unauthorized,
 } from "@/src/lib/response";
+import { withAuth } from "@/src/middleware/auth";
 
 /**
  * POST /groups/{groupId}/leave
  * A convenience endpoint for the authenticated user to leave a group.
  */
-export async function postHandler(
+const postHandler = async (
   request: NextRequest,
   payload: { userId: string },
   context: { params: { groupId: string } }
-) {
+) => {
   try {
     const { userId: authUserId } = payload;
     const { groupId } = context.params;
@@ -77,6 +78,6 @@ export async function postHandler(
     if (error.code === "P2025") return notFound("Group or user membership");
     return errorResponse("Internal server error");
   }
-}
+};
 
-export const POST = postHandler;
+export const POST = withAuth(postHandler);
