@@ -4,7 +4,7 @@ import { z } from "zod";
 
 Decimal.set({ precision: 12 });
 
-import { GroupRole } from "@prisma/client";
+import { GroupRole, SplitType } from "@prisma/client";
 import { jobQueue } from "@/src/lib/queue";
 import { prisma } from "@/src/lib/db";
 import { withAuth } from "@/src/middleware/auth";
@@ -15,10 +15,12 @@ import {
   successResponse,
   noContent,
   forbidden,
+  badRequest,
 } from "@/src/lib/response";
 import { formatDetailedExpense } from "@/src/lib/formatter";
 import {
   ExpenseBodySchema,
+  UpdateExpenseSchema,
   validateAndProcessExpense,
 } from "@/src/services/expenseService";
 
@@ -46,8 +48,26 @@ const getHandler = async (
 
     if (!expense) return notFound("Expense not found");
 
-    //401: Unauthorized (User is not part of the group)
-    await checkGroupMembership(userId, expense.group_id);
+    let expenseGroupId: string | null = null;
+    let friendId: string | null = null;
+
+    if (expense?.group_id) {
+      expenseGroupId = expense.group_id;
+      //401: Unauthorized (User is not part of the group)
+      await checkGroupMembership(userId, expenseGroupId);
+    } else if (expense?.friend_id) {
+      friendId = expense.friend_id;
+      const friendship = await prisma.friendship.findFirst({
+        where: {
+          OR: [
+            { requester_id: userId, addressee_id: friendId },
+            { requester_id: friendId, addressee_id: userId },
+          ],
+          status: "ACCEPTED",
+        },
+      });
+      if (!friendship) return forbidden("Users are not friends");
+    }
 
     return successResponse(
       "Expense fetched successfully",
@@ -65,7 +85,8 @@ const getHandler = async (
 
 /**
  * PUT /expenses/{expenseId}
- * Updates an existing expense.
+ * Updates an existing expense following the new POST flow.
+ * Supports both group expenses and friend-to-friend expenses.
  */
 const putHandler = async (
   request: NextRequest,
@@ -77,54 +98,134 @@ const putHandler = async (
     const { expenseId } = context.params;
     const body = await request.json();
 
-    // Validate payload
-    const parsedBody = ExpenseBodySchema.parse(body);
+    const parsedBody = UpdateExpenseSchema.parse(body);
 
-    // Authorize: Check user is in the group
-    await checkGroupMembership(userId, parsedBody.group_id);
-
-    // Get all group members for validation
-    const members = await prisma.groupMember.findMany({
-      where: { group_id: parsedBody.group_id },
-      select: { user_id: true },
+    // Fetch existing expense
+    const existing = await prisma.expense.findUnique({
+      where: { id: expenseId },
+      include: {
+        payers: true,
+        splits: true,
+      },
     });
-    const memberIds = new Set(members.map((m) => m.user_id));
 
-    // Process & Validate Logic
+    if (!existing) return notFound("Expense");
+
+    if (existing.group_id && parsedBody.friend_id && !parsedBody.group_id)
+      return badRequest("Cannot convert a group expense to friend expense");
+
+    if (existing.friend_id && parsedBody.group_id && !parsedBody.friend_id)
+      return badRequest("Cannot convert a friend expense to group expense");
+
+    if (
+      existing.group_id &&
+      parsedBody.group_id &&
+      parsedBody.group_id !== existing.group_id
+    )
+      return badRequest("Group ID cannot be changed");
+
+    if (existing.friend_id && parsedBody.friend_id && parsedBody.friend_id !== existing.friend_id)
+      return badRequest("Friend ID cannot be changed");
+
+    let memberIds: Set<string> | undefined;
+
+    if (existing.group_id) {
+      await checkGroupMembership(userId, existing.group_id);
+
+      const members = await prisma.groupMember.findMany({
+        where: { group_id: existing.group_id },
+        select: { user_id: true },
+      });
+
+      memberIds = new Set(members.map((m) => m.user_id));
+    } else if (existing.friend_id) {
+      const isCreator = existing.created_by_id === userId;
+      const isTheFriend = existing.friend_id === userId;
+
+      if (!isCreator && !isTheFriend) {
+        return forbidden("You are not a participant in this friend expense");
+      }
+
+      // Determine who the other person is for the memberIds set
+      const otherPersonId = isCreator ? existing.friend_id : existing.created_by_id;
+
+      const friendship = await prisma.friendship.findFirst({
+        where: {
+          OR: [
+            { requester_id: userId, addressee_id: otherPersonId },
+            { requester_id: otherPersonId, addressee_id: userId },
+          ],
+          status: "ACCEPTED",
+        },
+      });
+
+      if (!friendship) return forbidden("Friendship no longer exists");
+
+      memberIds = new Set([userId, otherPersonId]);
+    } else {
+       return errorResponse("Invalid expense state: No group or friend associated");
+    }
+
+    if (!memberIds) {
+      return errorResponse(
+        "Invalid expense: missing group or friend participants"
+      );
+    }
+
+    const mergedData = {
+      group_id: existing.group_id,
+      friend_id: existing.friend_id,
+      description: parsedBody.description ?? existing.description,
+      currency: parsedBody.currency ?? existing.currency,
+      category: parsedBody.category ?? existing.category,
+      date: parsedBody.date ?? existing.date.toISOString(),
+      receipt_url: parsedBody.receipt_url ?? existing.receipt_url,
+      amount: parsedBody.amount ?? existing.amount.toString(),
+      payers:
+        parsedBody.payers ??
+        existing.payers.map((p) => ({
+          user_id: p.user_id,
+          amount: p.amount.toString(),
+        })),
+      split_type:
+        parsedBody.split_type ?? (existing as any).split_type ?? "EQUAL",
+      splits:
+        parsedBody.splits ??
+        existing.splits.map((s) => ({
+          user_id: s.user_id,
+          amount_owed: s.amount_owed?.toString(),
+          percent_owed: s.percent_owed ?? undefined,
+          shares_owed: s.shares_owed ?? undefined,
+        })),
+    };
+
+    const validFullBody = ExpenseBodySchema.parse(mergedData);
+
     const { payerData, splitData } = validateAndProcessExpense(
-      parsedBody,
+      validFullBody,
       memberIds
     );
 
-    // Update records in a single db transaction
-    const updatedExpense = await prisma.$transaction(async (tx) => {
-      // Check if expense exists
-      const existing = await tx.expense.findUnique({
-        where: { id: expenseId },
-      });
-      if (!existing) throw new Error("NOT_FOUND");
-
-      // Check if group_id matches
-      if (existing.group_id !== parsedBody.group_id) {
-        throw new Error("Group ID cannot be changed");
-      }
-
-      // Delete old payers and splits
+    // Perform UPDATE (transaction)
+    await prisma.$transaction(async (tx) => {
       await tx.expensePayer.deleteMany({ where: { expense_id: expenseId } });
       await tx.expenseSplit.deleteMany({ where: { expense_id: expenseId } });
 
-      // Update the main Expense record
+      // Update main expense
       const expense = await tx.expense.update({
         where: { id: expenseId },
         data: {
           description: parsedBody.description,
-          amount: new Decimal(parsedBody.amount),
+          amount: new Decimal(validFullBody.amount),
+          currency: parsedBody.currency || "INR",
           category: parsedBody.category,
           date: parsedBody.date,
           receipt_url: parsedBody.receipt_url,
+          split_type: validFullBody.split_type,
         },
       });
-      // Create new related ExpensePayer records
+
+      // Insert payers again
       await tx.expensePayer.createMany({
         data: payerData.map((p) => ({
           expense_id: expense.id,
@@ -132,7 +233,8 @@ const putHandler = async (
           amount: p.amount,
         })),
       });
-      // Create new related ExpenseSplit records
+
+      // Insert splits again
       await tx.expenseSplit.createMany({
         data: splitData.map((s) => ({
           expense_id: expense.id,
@@ -146,38 +248,38 @@ const putHandler = async (
       return expense;
     });
 
-    // Enqueue the asynchronous balance update job
-    await jobQueue.add("recalculate-balance", { expenseId: updatedExpense.id });
+    // Trigger async balance update
+    await jobQueue.add("recalculate-balance", { expenseId });
 
-    // Fetch and return the complete record
+    // Return updated record
     const completeExpense = await prisma.expense.findUnique({
-      where: { id: updatedExpense.id },
+      where: { id: expenseId },
       include: {
-        created_by: true,
-        payers: { include: { user: true } },
-        splits: { include: { user: true } },
+        payers: {
+          include: { user: { select: { id: true, name: true, email: true } } },
+        },
+        splits: {
+          include: { user: { select: { id: true, name: true, email: true } } },
+        },
+        group: { select: { id: true, name: true } },
       },
     });
 
-    return successResponse(
-      "Expense updated successfully",
-      formatDetailedExpense(completeExpense)
-    );
+    return successResponse("Expense updated successfully", completeExpense);
   } catch (error: any) {
     console.log("Error updating expense:", error);
+
     if (error instanceof z.ZodError)
       return errorResponse("Invalid input", 400, "BAD_REQUEST", error.issues);
+
     if (error.message.includes("token")) return errorResponse("Unauthorized");
-    if (error.message === "NOT_FOUND") return notFound("Expense");
-    if (error.message === "Group ID cannot be changed") {
-      return errorResponse("Group ID cannot be changed", 400);
-    }
+
     if (
       error.message.includes("sum") ||
       error.message.includes("is not in the group")
-    ) {
+    )
       return errorResponse(error.message, 400);
-    }
+
     return errorResponse("Internal server error");
   }
 };
@@ -199,24 +301,30 @@ const deleteHandler = async (
       where: { id: expenseId },
     });
 
-    if (!expense) return notFound("Expense not found");
+    if (!expense) return notFound("Expense");
 
-    const membership = await checkGroupMembership(userId, expense.group_id);
+    if (expense.group_id) {
+      const membership = await checkGroupMembership(userId, expense.group_id);
 
-    // 403: Forbidden (User is not the creator or an ADMIN)
-    if (
-      expense.created_by_id !== userId &&
-      membership.role !== GroupRole.ADMIN
-    ) {
-      return forbidden();
+      if (
+        expense.created_by_id !== userId &&
+        membership.role !== GroupRole.ADMIN
+      ) {
+        return forbidden("Only creator or admin can delete this expense");
+      }
     }
 
-    // Action: Delete the expense.
+    if (expense?.friend_id) {
+      const friendId = expense.friend_id;
+      if (expense.created_by_id !== userId && friendId !== userId) {
+        return forbidden("You are not allowed to delete this friend expense");
+      }
+    }
+
     await prisma.expense.delete({
       where: { id: expenseId },
     });
 
-    // Enqueue the "undo" job. Pass all necessary data for recalculation.
     await jobQueue.add("recalculate-balance-delete", {
       deletedExpense: expense,
     });
@@ -225,9 +333,10 @@ const deleteHandler = async (
   } catch (error: any) {
     console.log("Error deleting expense:", error);
     if (error.message.includes("token")) return errorResponse("Unauthorized");
-    if (error.message === "NOT_FOUND_OR_UNAUTHORIZED") {
+
+    if (error.message === "NOT_FOUND_OR_UNAUTHORIZED")
       return errorResponse("Expense not found or unauthorized");
-    }
+
     return errorResponse("Internal server error");
   }
 };
