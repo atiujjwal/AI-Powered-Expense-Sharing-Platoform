@@ -2,7 +2,12 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/src/lib/db";
 import { FriendshipStatus } from "@prisma/client";
 import { withAuth } from "@/src/middleware/auth";
-import { errorResponse, noContent, notFound } from "@/src/lib/response";
+import {
+  errorResponse,
+  noContent,
+  notFound,
+  successResponse,
+} from "@/src/lib/response";
 
 /**
  * DELETE /friends/{userId}
@@ -65,4 +70,55 @@ const deleteHandler = async (
   }
 };
 
+/**
+ * GET /friends/{userId}
+ * Get a friend details by their user ID.
+ */
+const getHandler = async (
+  request: NextRequest,
+  payload: { userId: string },
+  context: { params: { userId: string } }
+) => {
+  try {
+    const { userId: myId } = payload;
+    const { userId: friendId } = context.params;
+
+    const friendship = await prisma.friendship.findFirst({
+      where: {
+        status: FriendshipStatus.ACCEPTED,
+        OR: [
+          { requester_id: myId, addressee_id: friendId },
+          { requester_id: friendId, addressee_id: myId },
+        ],
+      },
+    });
+
+    if (!friendship) return notFound("Friendship not found");
+
+    const user = await prisma.user.findUnique({
+      where: { id: friendId, is_deleted: false },
+    });
+
+    if (!user) return notFound("User not found");
+
+    const publicProfile = {
+      id: user.id,
+      name: user.name,
+      avatar_url: user.avatar,
+    };
+
+    return successResponse(
+      "Friend details fetched successfully",
+      publicProfile
+    );
+  } catch (error: any) {
+    console.log("Error getting friend details: ", error);
+    if (error.message.includes("token")) {
+      return errorResponse("unauthorized");
+    }
+    return errorResponse("Internal server error");
+  }
+};
+
+export const GET = withAuth(getHandler);
 export const DELETE = withAuth(deleteHandler);
