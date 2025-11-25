@@ -27,11 +27,11 @@ const postHandler = async (
   payload: { userId: string }
 ) => {
   try {
-    const requesterId = payload.userId;
+    const { userId: requesterId } = payload;
     const body = await request.json();
 
     const { addressee_id } = postSchema.parse(body);
-
+    
     if (requesterId === addressee_id) return badRequest("Cannot add yourself");
 
     const addressee = await prisma.user.findUnique({
