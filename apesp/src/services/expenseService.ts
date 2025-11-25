@@ -27,9 +27,11 @@ const SplitInputSchema = SplitBaseSchema.extend({
   shares_owed: z.number().optional(),
 });
 
-export const ExpenseBodySchema = z.object({
-  group_id: z.string().cuid(),
+export const ExpenseBodyBaseSchema = z.object({
+  group_id: z.string().cuid().nullable().optional(),
+  friend_id: z.string().cuid().nullable().optional(),
   description: z.string().min(1),
+  currency: z.string().min(1),
   amount: z.string().refine((val) => !new Decimal(val).isNaN(), {
     message: "Invalid total amount string",
   }),
@@ -41,7 +43,24 @@ export const ExpenseBodySchema = z.object({
   splits: z.array(SplitInputSchema).min(1, "At least one split is required"),
 });
 
+export const ExpenseBodySchema = ExpenseBodyBaseSchema.refine(
+  (data) => !!data.group_id !== !!data.friend_id,
+  {
+    message: "Exactly one of group_id or friend_id must be provided",
+  }
+);
+
 type ExpenseBody = z.infer<typeof ExpenseBodySchema>;
+
+export const UpdateExpenseSchema = ExpenseBodyBaseSchema.partial().refine(
+  (data) =>
+    !("group_id" in data) ||
+    !("friend_id" in data) ||
+    !!data.group_id !== !!data.friend_id,
+  {
+    message: "Exactly one of group_id or friend_id must be provided",
+  }
+);
 
 // Type for the data ready to be inserted into Prisma
 export type ProcessedPayer = { user_id: string; amount: Decimal };
@@ -118,7 +137,7 @@ export function validateAndProcessExpense(
 
     case SplitType.EXACT:
       for (const split of body.splits) {
-        if (!split.amount_owed) {
+        if (split.amount_owed == null) {
           throw new Error("Exact split missing 'amount_owed'");
         }
         const amount = new Decimal(split.amount_owed);
@@ -136,7 +155,7 @@ export function validateAndProcessExpense(
     case SplitType.PERCENTAGE:
       let totalPercent = 0;
       for (const split of body.splits) {
-        if (!split.percent_owed) {
+        if (split.percent_owed == null) {
           throw new Error("Percentage split missing 'percent_owed'");
         }
         totalPercent += split.percent_owed;
@@ -162,7 +181,7 @@ export function validateAndProcessExpense(
     case SplitType.SHARE:
       let totalShares = new Decimal(0);
       for (const split of body.splits) {
-        if (!split.shares_owed) {
+        if (split.shares_owed == null) {
           throw new Error("Share split missing 'shares_owed'");
         }
         totalShares = totalShares.add(split.shares_owed);
@@ -205,9 +224,8 @@ export function distributeAmountEqually(
   totalAmount: Decimal,
   numSplits: number
 ): Decimal[] {
-  // Use two decimal places for currency
-  const amount = totalAmount.toDecimalPlaces(2);
-  const baseAmount = amount.dividedBy(numSplits).floor();
+  const amount = totalAmount.toDecimalPlaces(12);
+  const baseAmount = amount.dividedBy(numSplits);
   const remainder = amount.minus(baseAmount.times(numSplits));
 
   const results: Decimal[] = [];
