@@ -58,7 +58,7 @@ export default function DashboardLayout({
         <div className="h-16 flex items-center justify-between px-6 border-b border-mono-200">
           <Link href="/dashboard" className="flex items-center gap-2">
             <LayoutDashboard className="w-6 h-6 text-mono-900" />
-            <span className="font-semibold text-mono-900">PayAId</span>
+            <span className="font-semibold text-mono-900">pAIse</span>
           </Link>
           <button
             onClick={() => setSidebarOpen(false)}

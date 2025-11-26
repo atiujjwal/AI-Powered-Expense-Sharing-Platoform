@@ -33,7 +33,7 @@ export default function HomePage() {
           <div className="flex items-center gap-2">
             <Wallet className="w-6 h-6 text-mono-900" />
             <span className="text-xl font-semibold text-mono-900">
-              PayAId
+              pAIse
             </span>
           </div>
           <nav className="hidden md:flex items-center gap-6">
@@ -112,7 +112,7 @@ export default function HomePage() {
 
       <footer className="border-t border-mono-200 bg-white py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-sm text-mono-600 text-center">
-          © 2025 PayAId. All rights reserved.
+          © 2025 pAIse. All rights reserved.
         </div>
       </footer>
     </div>
