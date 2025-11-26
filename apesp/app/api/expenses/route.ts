@@ -123,7 +123,7 @@ const postHandler = async (
       return expense;
     });
 
-    // Enqueue the asynchronous balance update job
+    // TODO: Enqueue the asynchronous balance update job
     await jobQueue.add("recalculate-balance", { expenseId: newExpense.id });
 
     // Fetch and return the complete record
