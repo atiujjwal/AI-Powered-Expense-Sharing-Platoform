@@ -248,7 +248,7 @@ const putHandler = async (
       return expense;
     });
 
-    // Trigger async balance update
+    // TODO:  Trigger async balance update
     await jobQueue.add("recalculate-balance", { expenseId });
 
     // Return updated record
@@ -325,6 +325,7 @@ const deleteHandler = async (
       where: { id: expenseId },
     });
 
+    // TODO: recalculate-balance-delete
     await jobQueue.add("recalculate-balance-delete", {
       deletedExpense: expense,
     });
