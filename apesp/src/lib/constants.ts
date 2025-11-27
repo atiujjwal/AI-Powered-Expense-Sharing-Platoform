@@ -7,31 +7,31 @@ export const APP_DESCRIPTION = "Smart Expense Tracking Made Simple";
 export const APP_VERSION = "1.0.0";
 
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
 export const API_ENDPOINTS = {
   // Auth
-  LOGIN: `${API_BASE_URL}/auth/login`,
-  REGISTER: `${API_BASE_URL}/auth/register`,
-  LOGOUT: `${API_BASE_URL}/auth/logout`,
-  ME: `${API_BASE_URL}/users/me`,
+  LOGIN: `${API_BASE_URL}/api/auth/login`,
+  REGISTER: `${API_BASE_URL}/api/auth/register`,
+  LOGOUT: `${API_BASE_URL}/api/auth/logout`,
+  ME: `${API_BASE_URL}/api/users/me`,
   
   // Groups
-  GROUPS: `${API_BASE_URL}/groups`, // GET list, POST create
-  GROUP_DETAILS: (id: string) => `${API_BASE_URL}/groups/${id}`,
-  GROUP_EXPENSES: (id: string) => `${API_BASE_URL}/groups/${id}/expenses`,
+  GROUPS: `${API_BASE_URL}/api/groups`, // GET list, POST create
+  GROUP_DETAILS: (id: string) => `${API_BASE_URL}/api/groups/${id}`,
+  GROUP_EXPENSES: (id: string) => `${API_BASE_URL}/api/groups/${id}/expenses`,
   
   // Expenses
-  EXPENSES: `${API_BASE_URL}/expenses`, // GET list, POST create
-  EXPENSE_DETAILS: (id: string) => `${API_BASE_URL}/expenses/${id}`, // GET, PATCH, DELETE
+  EXPENSES: `${API_BASE_URL}/api/expenses`, // GET list, POST create
+  EXPENSE_DETAILS: (id: string) => `${API_BASE_URL}/api/expenses/${id}`, // GET, PATCH, DELETE
   
   // Dashboard & Analytics
-  DASHBOARD_SUMMARY: `${API_BASE_URL}/dashboard/summary`,
-  ANALYTICS_SUMMARY: `${API_BASE_URL}/analytics/summary`,
+  DASHBOARD_SUMMARY: `${API_BASE_URL}/api/dashboard/summary`,
+  ANALYTICS_SUMMARY: `${API_BASE_URL}/api/analytics/summary`,
   
   // AI
-  AI_RECEIPT: `${API_BASE_URL}/ai/scan-receipt`, // 
-  AI_VOICE: `${API_BASE_URL}/ai/voice-expense`,   // 
+  AI_RECEIPT: `${API_BASE_URL}/api/ai/scan-receipt`, // 
+  AI_VOICE: `${API_BASE_URL}/api/ai/voice-expense`,   // 
 };
 
 /**

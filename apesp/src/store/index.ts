@@ -1,6 +1,28 @@
 import { create } from "zustand";
 import { AnalyticsSummary, Expense, Group, User } from "../lib/types";
+import { STORAGE_KEYS } from "../lib/constants";
 import { sleep } from "../lib/utils";
+import {
+  loginApi,
+  registerApi,
+  logoutApi,
+  getGroupsApi,
+  createGroupApi,
+  getExpensesApi,
+  createExpenseApi,
+  deleteExpenseApi,
+  getDashboardSummaryApi,
+} from "../services/apiClient";
+
+const getInitialUser = () => {
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = localStorage.getItem(STORAGE_KEYS.AUTH_USER);
+    return stored ? JSON.parse(stored) : null;
+  } catch {
+    return null;
+  }
+};
 
 
 type AuthSlice = {
@@ -31,146 +53,94 @@ type DashboardSlice = {
 export const useStore = create<
   AuthSlice & GroupsSlice & ExpensesSlice & DashboardSlice
 >((set, get) => ({
-  // Auth (mock)
-  user: null,
-  login: async (email, _password) => {
-    await sleep(500);
-    // TODO: Call backend /api/auth/login
-    set({ user: { id: "u1", name: "Alex", email, currency: "INR" } });
+  // Auth (backed by API)
+  user: getInitialUser(),
+  login: async (email, password) => {
+    try {
+      const data = await loginApi(email, password);
+      const user: User = data?.user ?? data;
+      set({ user });
+    } catch (err) {
+      console.error("Login failed:", err);
+      throw err;
+    }
   },
-  register: async (email, _password, name) => {
-    await sleep(700);
-    // TODO: Call backend /api/auth/register
-    set({ user: { id: "u1", name, email, currency: "INR" } });
+  register: async (email, password, name) => {
+    try {
+      const data = await registerApi(email, password, name);
+      const user: User = data?.user ?? data;
+      set({ user });
+    } catch (err) {
+      console.error("Register failed:", err);
+      throw err;
+    }
   },
-  logout: () => set({ user: null }),
+  logout: () => {
+    logoutApi().catch((e) => console.warn("logout failed", e));
+    set({ user: null });
+  },
 
   // Groups (mock)
   groups: [],
   fetchGroups: async () => {
-    await sleep(400);
-    // TODO: GET /api/groups
-    set({
-      groups: [
-        {
-          id: "g1",
-          name: "Goa Trip",
-          currency: "INR",
-          members: [{ id: "u1", name: "Alex" }],
-          description: "New Year trip",
-        },
-        {
-          id: "g2",
-          name: "Flat 305",
-          currency: "INR",
-          members: [{ id: "u1", name: "Alex" }],
-          description: "Roommates",
-        },
-      ],
-    });
+    try {
+      const groups = await getGroupsApi();
+      set({ groups });
+    } catch (err) {
+      console.error("Failed to fetch groups:", err);
+    }
   },
   addGroup: async (g) => {
-    await sleep(600);
-    // TODO: POST /api/groups
-    const id = crypto.randomUUID();
-    set({ groups: [...get().groups, { ...g, id }] as Group[] });
-    return id;
+    try {
+      const created = await createGroupApi(g);
+      set((state) => ({ groups: [...state.groups, created] }));
+      return created.id;
+    } catch (err) {
+      console.error("Failed to create group:", err);
+      throw err;
+    }
   },
 
   // Expenses (mock)
   expenses: [],
-  fetchExpenses: async (_groupId) => {
-    await sleep(500);
-    // TODO: GET /api/expenses?groupId=...
-    set({
-      expenses: [
-        {
-          id: "e1",
-          groupId: "g1",
-          date: new Date().toISOString(),
-          merchant: "Cafe 77",
-          category: "DINING",
-          amount: 850,
-          paidBy: "u1",
-          split: "equal",
-          currency: "INR",
-        },
-      ],
-    });
+  fetchExpenses: async (groupId) => {
+    try {
+      const expenses = await getExpensesApi(groupId);
+      set({ expenses });
+    } catch (err) {
+      console.error("Failed to fetch expenses:", err);
+    }
   },
   addExpense: async (e) => {
-    await sleep(700);
-    // TODO: POST /api/expenses
-    const id = crypto.randomUUID();
-    set({ expenses: [{ ...e, id }, ...get().expenses] as Expense[] });
-    return id;
+    try {
+      const created = await createExpenseApi(e);
+      set((state) => ({ expenses: [created, ...state.expenses] }));
+      return created.id;
+    } catch (err) {
+      console.error("Failed to add expense:", err);
+      throw err;
+    }
   },
   deleteExpense: async (id) => {
-    await sleep(300);
-    // TODO: DELETE /api/expenses/:id
-    set({ expenses: get().expenses.filter((x) => x.id !== id) });
+    try {
+      const prev = get().expenses;
+      set({ expenses: prev.filter((x) => x.id !== id) });
+      await deleteExpenseApi(id);
+    } catch (err) {
+      console.error("Failed to delete expense:", err);
+      await get().fetchExpenses();
+      throw err;
+    }
   },
 
   // Dashboard (mock)
   summary: null,
   fetchSummary: async () => {
-    await sleep(500);
-    // TODO: GET /api/analytics/summary
-    set({
-      summary: {
-        totalSpent: 27500,
-        totalBudget: 40000,
-        remaining: 12500,
-        percentageUsed: 69,
-        categories: [
-          {
-            category: "DINING",
-            amount: 8200,
-            percentage: "30%",
-            color: "#F59E0B",
-          },
-          {
-            category: "GROCERIES",
-            amount: 6000,
-            percentage: "22%",
-            color: "#10B981",
-          },
-          {
-            category: "TRAVEL",
-            amount: 9000,
-            percentage: "33%",
-            color: "#6366F1",
-          },
-          {
-            category: "UTILITIES",
-            amount: 2300,
-            percentage: "8%",
-            color: "#EF4444",
-          },
-          {
-            category: "OTHER",
-            amount: 1000,
-            percentage: "4%",
-            color: "#A3A3A3",
-          },
-        ],
-        recentExpenses: [
-          {
-            id: "e1",
-            date: new Date().toISOString(),
-            merchant: "Uber",
-            category: "TRAVEL",
-            amount: 350,
-          },
-          {
-            id: "e2",
-            date: new Date().toISOString(),
-            merchant: "Zomato",
-            category: "DINING",
-            amount: 550,
-          },
-        ],
-      },
-    });
+    try {
+      const summary = await getDashboardSummaryApi();
+      set({ summary });
+    } catch (err) {
+      console.error("Failed to fetch dashboard summary:", err);
+    }
   },
 }));

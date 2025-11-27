@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -40,6 +40,11 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   return (
     <div className="min-h-screen bg-mono-50">
@@ -96,10 +101,10 @@ export default function DashboardLayout({
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-mono-900 truncate">
-                {user?.name ?? "User"}
+                {isClient ? user?.name || "User" : "User"}
               </p>
               <p className="text-xs text-mono-500 truncate">
-                {user?.email ?? "you@example.com"}
+                {isClient ? user?.email || "you@example.com" : "you@example.com"}
               </p>
             </div>
           </div>

@@ -110,7 +110,7 @@ export default function DashboardPage() {
             <CardTitle>Spending by Category</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {summary!.categories.map((cat) => (
+            {summary!.categories?.map((cat) => (
               <div key={cat.category}>
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
@@ -157,7 +157,7 @@ export default function DashboardPage() {
             </Link>
           </CardHeader>
           <CardContent className="space-y-4">
-            {summary!.recentExpenses.slice(0, 5).map((exp) => (
+            {summary?.recentExpenses?.slice(0, 5).map((exp) => (
               <div key={exp.id} className="flex items-center justify-between">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-mono-900 truncate">
