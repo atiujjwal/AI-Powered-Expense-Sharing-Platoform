@@ -1,103 +1,52 @@
-import { NextRequest } from "next/server";
-import { prisma } from "@/src/lib/db";
-import { hashPassword, comparePassword } from "@/src/lib/auth";
+import { badRequest, errorResponse, successResponse } from "@/src/lib/response";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { withAuth } from "@/src/middleware/auth";
-import {
-  badRequest,
-  errorResponse,
-  forbidden,
-  notFound,
-} from "@/src/lib/response";
-// import { withAuth } from "@/middleware/withAuth";
+import bcrypt from "bcrypt";
+import { prisma } from "@/src/lib/db";
 
-// For forgot password flow
-const forgotSchema = z.object({
+const changePasswordSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(6),
-  type: z.literal("forgot"),
+  otp: z.string().length(6),
+  newPassword: z.string().min(8),
 });
 
-// For change password flow
-const changeSchema = z.object({
-  oldPassword: z.string().min(6),
-  newPassword: z.string().min(6),
-  type: z.literal("change"),
-});
-
-// Internal handler for authenticated password change
-async function changePasswordHandler(
-  req: NextRequest,
-  payload: { userId: string }
-) {
-  const { userId } = payload;
-  const body = await req.json();
-  const { oldPassword, newPassword } = changeSchema.parse(body);
-
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user) return notFound("User not found");
-
-  // Validate old password
-  const correct = await comparePassword(oldPassword, user.password);
-  if (!correct) return forbidden("Incorrect old password");
-
-  // Hash and update to new password
-  const hashed = await hashPassword(newPassword);
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { password: hashed },
-  });
-
-  return errorResponse("Password changed successfully");
-}
-
-export async function PATCH(req: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    const { email, otp, newPassword } = changePasswordSchema.parse(body);
 
-    // // // Forgot password flow (unauthenticated)
-    // if (body.type === "forgot") {
-    //   const { email, password } = forgotSchema.parse(body);
+    const otpRecord = await prisma.userOtp.findFirst({
+      where: {
+        email,
+        otp,
+        type: "forgot_password",
+        used: false,
+        expires_at: { gt: new Date() },
+      },
+    });
 
-    //   // Look for a recently verified OTP for this email (used, not expired)
-    //   const tenMinsAgo = new Date(Date.now() - 10 * 60 * 1000);
-    //   const verifiedOtp = await prisma.otp.findFirst({
-    //     where: {
-    //       email,
-    //       type: "reset_password",
-    //       used: true,
-    //       expires_at: { gt: tenMinsAgo },
-    //     },
-    //   });
-    //   if (!verifiedOtp) return forbidden();
+    if (!otpRecord) {
+      return badRequest("Invalid or expired OTP");
+    }
 
-    //   // Update password
-    //   const hashed = await hashPassword(password);
-    //   await prisma.user.update({
-    //     where: { email },
-    //     data: { password: hashed },
-    //   });
+    await prisma.userOtp.update({
+      where: { id: otpRecord.id },
+      data: { used: true },
+    });
 
-    //   // Expire all reset_password OTPs for this email
-    //   await prisma.otp.updateMany({
-    //     where: { email, type: "reset_password" },
-    //     data: { used: true },
-    //   });
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    //   return successResponse("Password reset successful");
-    // }
+    await prisma.user.update({
+      where: { email },
+      data: { password: hashedPassword },
+    });
 
-    // // Change password flow (authenticated, uses withAuth)
-    // if (body.type === "change") {
-    //   // return await withAuth(changePasswordHandler)(req);
-    // }
-
-    // Invalid type
-    return badRequest("Invalid request type");
+    return successResponse("Password changed successfully");
   } catch (error) {
-    console.log("Error updating password: ", error);
-    if (error instanceof z.ZodError)
+    console.log("Error changing password: ", error);
+    if (error instanceof z.ZodError) {
       return badRequest("Invalid request", error.issues);
-    return badRequest("Internal server error");
+    }
+    return errorResponse("Internal server error");
   }
 }
