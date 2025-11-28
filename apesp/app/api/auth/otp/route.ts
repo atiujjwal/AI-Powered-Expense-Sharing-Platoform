@@ -1,13 +1,13 @@
+import { prisma } from "@/src/lib/db";
 import { badRequest, errorResponse, successResponse } from "@/src/lib/response";
-import { NextRequest } from "next/server";
+import { sendEmailOtp } from "@/src/services/otpServices";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-// Utility: Generate 6-digit random OTP
 function generateOtp(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// --- Zod Schemas for validation
 const sendOtpSchema = z.object({
   email: z.string().email().optional(),
   phone: z.string().optional(),
@@ -28,29 +28,26 @@ export async function GET(req: NextRequest) {
     const phone = url.searchParams.get("phone") ?? undefined;
     const type = url.searchParams.get("type") || "";
 
-    console.log("32: ", { email, phone, type });
+    sendOtpSchema.parse({ email, phone, type });
 
-    // Validate inputs via Zod
-    // sendOtpSchema.parse({ email, phone, type });
+    const otp = generateOtp();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
-    // Generate OTP & expiry (5 min)
-    // const otp = generateOtp();
-    // const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    await prisma.userOtp.create({
+      data: { email, phone, otp, type, expires_at: expiresAt },
+    });
 
-    // Save to DB
-    // await prisma.UserOtp.create({
-    //   data: { email, phone, otp, type, expires_at: expiresAt },
-    // });
-
-    // TODO: Actually send the OTP (email, SMS, etc).
-    // code to send otp to users
+    if (email) {
+      await sendEmailOtp(email, otp);
+    } else if (phone) {
+      // TODO: implement phone otp
+      console.log(`[SMS MOCK] To: ${phone}, OTP: ${otp}`);
+    }
 
     return successResponse("OTP sent successfully", {
       message: "OTP sent",
-      //   otp, // REMOVE in production!
-      // expiresAt,
-      otp: 1234,
-      expiresAt: "2005-11-13",
+      otp, // REMOVE in production!
+      expiresAt,
     });
   } catch (error) {
     console.log("Error sending OTP: ", error);
@@ -66,31 +63,35 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { email, phone, type, otp } = verifyOtpSchema.parse(body);
 
-    console.log("75: ", { email, phone, type, otp });
+    const where: any = {
+      otp,
+      type,
+      used: false,
+      expires_at: { gt: new Date() },
+    };
+    if (email) where.email = email;
+    if (phone) where.phone = phone;
 
-    // const where: any = {
-    //   otp,
-    //   type,
-    //   used: false,
-    //   expires_at: { gt: new Date() },
-    // };
-    // if (email) where.email = email;
-    // if (phone) where.phone = phone;
+    const otpRecord = await prisma.userOtp.findFirst({
+      where: {
+        email,
+        otp,
+        type,
+        used: false,
+        expires_at: { gt: new Date() },
+      },
+    });
 
-    // // Find OTP entry
-    // const otpRecord = await prisma.UserOtp.findFirst({ where });
-
-    // if (!otpRecord)
-    //   return NextResponse.json(
-    //     { error: "Invalid or expired OTP" },
-    //     { status: 400 }
-    //   );
-
-    // // Mark OTP as used to prevent reuse
-    // await prisma.otp.update({
-    //   where: { id: otpRecord.id },
-    //   data: { used: true },
-    // });
+    if (!otpRecord)
+      return NextResponse.json(
+        { error: "Invalid or expired OTP" },
+        { status: 400 }
+      );
+      
+    await prisma.userOtp.update({
+      where: { id: otpRecord.id },
+      data: { used: true },
+    });
 
     return successResponse("OTP verified");
   } catch (error) {
