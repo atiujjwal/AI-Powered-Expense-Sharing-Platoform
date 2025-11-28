@@ -119,6 +119,19 @@ model UserToken {
   session Session @relation(fields: [session_id], references: [id], onDelete: Cascade) // (FK session_id): Token is tied to a specific session. If session ends, its tokens are invalidated.
 }
 
+model UserOtp {
+  id         String   @id @default(cuid())
+  email      String?
+  phone      String?
+  otp        String
+  type       String // "register", "login", "forgot_password"
+  expires_at DateTime
+  used       Boolean  @default(false)
+  created_at DateTime @default(now())
+
+  @@index([email])
+  @@index([phone])
+}
 // ----------------------------------------
 // Social Graph Models
 // ----------------------------------------
