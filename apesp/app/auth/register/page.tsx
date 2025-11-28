@@ -47,11 +47,12 @@ export default function RegisterPage() {
   const onSubmit = async (data: FormData) => {
     try {
       setIsLoading(true);
-      await registerUser(data.email, data.password, data.name); // TODO: backend register
+      await registerUser(data.email, data.password, data.name);
       toast.success("Account created!");
       router.push("/dashboard");
-    } catch {
-      toast.error("Registration failed");
+    } catch (e: any) {
+      const msg = e?.message || "Registration failed";
+      toast.error(msg);
     } finally {
       setIsLoading(false);
     }

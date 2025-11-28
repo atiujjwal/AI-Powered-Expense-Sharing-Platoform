@@ -2,41 +2,37 @@
  * Application constants
  */
 
-export const APP_NAME = "ExpenseFlow";
+export const APP_NAME = "pAIse";
 export const APP_DESCRIPTION = "Smart Expense Tracking Made Simple";
 export const APP_VERSION = "1.0.0";
 
-/**
- * API Endpoints
- */
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
 export const API_ENDPOINTS = {
   // Auth
-  REGISTER: "/api/auth/register",
-  LOGIN: "/api/auth/login",
-  ME: "/api/auth/me",
-  LOGOUT: "/api/auth/logout",
-
+  LOGIN: `${API_BASE_URL}/api/auth/login`,
+  REGISTER: `${API_BASE_URL}/api/auth/register`,
+  LOGOUT: `${API_BASE_URL}/api/auth/logout`,
+  ME: `${API_BASE_URL}/api/users/me`,
+  
+  // Groups
+  GROUPS: `${API_BASE_URL}/api/groups`, // GET list, POST create
+  GROUP_DETAILS: (id: string) => `${API_BASE_URL}/api/groups/${id}`,
+  GROUP_EXPENSES: (id: string) => `${API_BASE_URL}/api/groups/${id}/expenses`,
+  
   // Expenses
-  EXPENSES: "/api/expenses",
-  EXPENSE_BY_ID: (id: string) => `/api/expenses/${id}`,
-
-  // Budgets
-  BUDGETS: "/api/budgets",
-  BUDGET_BY_ID: (id: string) => `/api/budgets/${id}`,
-
-  // Subscriptions
-  SUBSCRIPTIONS: "/api/subscriptions",
-  SUBSCRIPTION_BY_ID: (id: string) => `/api/subscriptions/${id}`,
-
-  // Dashboard
-  DASHBOARD_SUMMARY: "/api/dashboard/summary",
-
-  // Health
-  HEALTH: "/api/health",
-} as const;
+  EXPENSES: `${API_BASE_URL}/api/expenses`, // GET list, POST create
+  EXPENSE_DETAILS: (id: string) => `${API_BASE_URL}/api/expenses/${id}`, // GET, PATCH, DELETE
+  
+  // Dashboard & Analytics
+  DASHBOARD_SUMMARY: `${API_BASE_URL}/api/dashboard/summary`,
+  ANALYTICS_SUMMARY: `${API_BASE_URL}/api/analytics/summary`,
+  
+  // AI
+  AI_RECEIPT: `${API_BASE_URL}/api/ai/scan-receipt`, // 
+  AI_VOICE: `${API_BASE_URL}/api/ai/voice-expense`,   // 
+};
 
 /**
  * Expense Categories

@@ -32,11 +32,12 @@ export default function LoginPage() {
   const onSubmit = async (data: FormData) => {
     try {
       setIsLoading(true);
-      await login(data.email, data.password); // TODO: backend auth
+      await login(data.email, data.password);
       toast.success("Welcome back!");
       router.push("/dashboard");
     } catch (e: any) {
-      toast.error("Login failed");
+      const msg = e?.message || "Login failed";
+      toast.error(msg);
     } finally {
       setIsLoading(false);
     }

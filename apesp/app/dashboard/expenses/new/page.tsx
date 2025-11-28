@@ -4,8 +4,10 @@ import * as z from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import toast from "react-hot-toast";
-import { useRouter } from "next/router";
+import { useRouter } from "next/navigation";
 import useExpenses from "../../../../src/hooks/useExpenses";
+import useAuth from "../../../../src/hooks/useAuth";
+import { useStore } from "../../../../src/store";
 import Card, { CardHeader, CardTitle } from "../../../../src/components/ui/Card";
 import Input from "../../../../src/components/ui/Input";
 import { formatAmount } from "../../../../src/lib/utils";
@@ -25,6 +27,8 @@ type FormData = z.infer<typeof schema>;
 export default function NewExpensePage() {
   const router = useRouter();
   const { addExpense } = useExpenses();
+  const { user } = useAuth();
+  const groups = useStore((s) => s.groups);
   const [isLoading, setIsLoading] = useState(false);
   const {
     register,
@@ -47,13 +51,13 @@ export default function NewExpensePage() {
     try {
       setIsLoading(true);
       await addExpense({
-        groupId: "g1",
-        paidBy: "u1",
+        groupId: groups?.[0]?.id ?? null,
+        paidBy: user?.id ?? undefined,
         attachments: [],
         comments: [],
         reactions: [],
         ...data,
-      }); // TODO: call backend
+      });
       toast.success("Expense added!");
       router.push("/dashboard/expenses");
     } catch {

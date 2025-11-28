@@ -1,73 +1,43 @@
-# pAIse: AI-Powered Expense Management
-
-`pAIse` is a next-generation, AI-powered expense management application designed for scalability, performance, and a rich feature-set. It handles complex social interactions (friend requests), intricate expense models (multi-payer, multi-split), and instantaneous, high-performance balance calculations, all powered by a robust backend architecture.
-
-## Features
-
-- **Secure Authentication:** Modern JWT-based authentication with short-lived access tokens and long-lived refresh tokens.
-- **Social Graph:** Full friend request and management workflow (pending, accepted, blocked).
-- **Group Management:** Create and manage groups with Role-Based Access Control (Admin, Member).
-- **Complex Expense Splitting:** Supports multiple payers and various split types (equal, exact, percentage, share).
-- **Real-time Balance Calculation:** High-performance, denormalized balance system for instantaneous updates.
-- **Debt Simplification:** Smart algorithm to minimize the number of transactions needed to settle group debts.
-- **AI-Powered Expense Entry:**
-  - **Receipt Scanning (OCR):** Scan receipts to automatically create draft expenses.
-  - **Voice-Powered Entry:** Create draft expenses from voice commands.
-- **AI Financial Chatbot:** A natural language interface to query your financial data.
-- **Personal Finance Tools:** Manage budgets, subscriptions, and savings goals.
-
-
-## Tech Stack
-
-- **Framework:** [Next.js](https://nextjs.org/)
-- **ORM:** [Prisma](https://www.prisma.io/)
-- **Database:** [PostgreSQL](https://www.postgresql.org/)
-- **Styling:** [Tailwind CSS](https://tailwindcss.com/)
-- **Language:** [TypeScript](https://www.typescriptlang.org/)
-- **State Management:** [Zustand](https://github.com/pmndrs/zustand)
-- **API Client:** [Axios](https://axios-http.com/) & [SWR](https://swr.vercel.app/)
-
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
 
-Follow these instructions to get the project up and running on your local machine for development and testing purposes.
+First, run the development server:
 
-### Prerequisites
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
 
-- [Node.js](https://nodejs.org/) (v20.x or later recommended)
-- [npm](https://www.npmjs.com/) (or yarn/pnpm)
-- [PostgreSQL](https://www.postgresql.org/download/) database
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-### Installation
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-1.  **Clone the repository:**
-    ```sh
-    git clone https://github.com/atiujjwal/pAIse.git
-    cd apesp
-    ```
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-2.  **Install dependencies:**
-    ```sh
-    npm install
-    ```
+## Learn More
 
-3.  **Set up environment variables:**
-    Refer .env.example to create a `.env` file in the root of the `apesp` directory and add your database connection string:
-    ```env
-    DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public"
-    ```
+To learn more about Next.js, take a look at the following resources:
 
-4.  **Run database migrations:**
-    This will sync the Prisma schema with your database and create the necessary tables.
-    ```sh
-    npx prisma migrate dev
-    ```
-    
-5.  **Run the development server:**
-    ```sh
-    npm run dev
-    ```
-    The application will be available at [http://localhost:3000](http://localhost:3000).
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
----
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+
+Which File Stores what?
+
+Services: stores db call functions
+
+Store: BE API Integration
