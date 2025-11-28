@@ -3,65 +3,76 @@ import { z } from "zod";
 import { withAuth } from "@/src/middleware/auth";
 import { badRequest, errorResponse, successResponse } from "@/src/lib/response";
 import { NlpService } from "@/src/services/aiServices";
-import { AnalyticsService } from "@/src/services/analyticsServices";
+import { DataRetrievalService } from "@/src/services/dataRetrievalService";
 
 const querySchema = z.object({
-  query: z.string().min(3, "Query is too short"),
+  query: z.string().min(2, "Query is too short"),
 });
 
-/**
- * POST /ai/query
- * Handles natural language queries using RAG workflow.
- */
 const postHandler = async (
   request: NextRequest,
   payload: { userId: string }
 ) => {
   try {
     const { userId } = payload;
-
     const body = await request.json();
     const parseResult = querySchema.safeParse(body);
 
-    // 400: Invalid query
-    if (!parseResult.success) {
-      return badRequest("Invalid query");
-    }
-
+    if (!parseResult.success) return badRequest("Invalid query");
     const { query } = parseResult.data;
 
-    // --- RAG WORKFLOW ---
-
-    // Parse intent
+    // 1. INTENT RECOGNITION
     const intent = await NlpService.parseQueryIntent(query);
+    console.log("Parsed Intent:", intent);
 
-    if (intent.action === "unknown") {
-      return successResponse("Unknown query type", {
-        answer:
-          "Sorry, I'm not sure how to help with that. Try asking about your spending.",
-        data: null,
-      });
+    let retrievedData;
+
+    // 2. DATA RETRIEVAL (Switch on Intent)
+    switch (intent.type) {
+      case "GET_SPENDING":
+      case "GET_TRANSACTIONS":
+        retrievedData = await DataRetrievalService.getSpending(
+          userId,
+          intent.parameters
+        );
+        break;
+
+      case "GET_BALANCE":
+        retrievedData = await DataRetrievalService.getBalances(
+          userId,
+          intent.parameters
+        );
+        break;
+
+      case "APP_HELP":
+        retrievedData = DataRetrievalService.getAppHelp();
+        break;
+
+      case "UNKNOWN":
+      default:
+        retrievedData = {
+          message:
+            "I couldn't find specific data, but I am here to help with expenses and features.",
+        };
+        break;
     }
 
-    // Retrieve structured analytics data
-    const data = await AnalyticsService.getSpendingSummary(
-      userId,
-      intent.period,
-      intent.category
+    // 3. GENERATION
+    const finalAnswer = await NlpService.generateRagResponse(
+      query,
+      retrievedData
     );
 
-    // Generate final LLM response incorporating retrieved data
-    const answer = await NlpService.generateRagResponse(query, data);
-
-    // Return safe, accurate RAG output
-    return successResponse("AI query processed successfully", {
-      answer,
-      data,
+    return successResponse("Query processed", {
+      intent: intent.type,
+      answer: finalAnswer,
+      // We return the raw data too, in case Frontend wants to show a Chart/Table
+      raw_data: retrievedData,
     });
   } catch (error: any) {
-    console.log("Error processing AI query: ", error);
-    if (error.message.includes("token")) return errorResponse("Unauthorized");
-    return errorResponse("AI query failed");
+    console.error("AI Query Error:", error);
+    if (error.message?.includes("token")) return errorResponse("Unauthorized");
+    return errorResponse("Failed to process query");
   }
 };
 
